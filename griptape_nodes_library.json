@@ -4,7 +4,7 @@
   "metadata": {
     "author": "KIWOO",
     "description": "VFX-grade Image Based Keyer (IBK) and Vision Transformer (ViT) 4K Spatio-temporal Mask Extraction Toolkit with pure-white core and pure-black background",
-    "library_version": "2.2.0",
+    "library_version": "2.3.0",
     "engine_version": "0.100.2",
     "tags": [
       "Griptape",
