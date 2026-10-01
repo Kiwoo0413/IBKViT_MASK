@@ -1,0 +1,109 @@
+{
+  "name": "VFX IBK & ViT Masking Library",
+  "library_schema_version": "0.7.0",
+  "metadata": {
+    "author": "KIWOO",
+    "description": "VFX-grade Image Based Keyer (IBK) and Vision Transformer (ViT) 4K Spatio-temporal Mask Extraction Toolkit with pure-white core and pure-black background",
+    "library_version": "2.2.0",
+    "engine_version": "0.100.2",
+    "tags": [
+      "Griptape",
+      "VFX",
+      "Keying",
+      "IBK",
+      "ViT",
+      "SAM2",
+      "VitMatte",
+      "Masking",
+      "Alpha",
+      "4K",
+      "OpenEXR"
+    ],
+    "dependencies": {
+      "pip_dependencies": [
+        "torch>=2.1.0",
+        "torchvision>=0.16.0",
+        "transformers>=4.44.0",
+        "opencv-python>=4.8.0",
+        "openexr>=3.5.0",
+        "imageio>=2.30.0",
+        "imageio-ffmpeg>=0.5.0",
+        "scipy>=1.11.0",
+        "numpy>=1.24.0",
+        "Pillow>=10.0.0"
+      ]
+    }
+  },
+  "categories": [
+    {
+      "VFXMaskingKeying": {
+        "color": "border-emerald-500",
+        "title": "VFX Keying & ViT Masking",
+        "description": "Nodes for VFX-grade Image Based Keying (IBK) and ViT 4K Spatio-temporal Matting",
+        "icon": "sparkles"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "class_name": "VFXKeyingViTAllInOneNode",
+      "file_path": "nodes/vfx_all_in_one_node.py",
+      "metadata": {
+        "category": "VFXMaskingKeying",
+        "description": "Complete IBK Clean Plate, ViT Pure-White Core, Hair Keying, Polarity Auto-Correction, and Dual 4K UHD EXR/PNG Sequence Export (Stabilized + Raw)",
+        "display_name": "VFX IBK & ViT Keyer (All-in-One)",
+        "icon": "sparkles"
+      }
+    },
+    {
+      "class_name": "IBKCleanPlateNode",
+      "file_path": "nodes/ibk_clean_plate_node.py",
+      "metadata": {
+        "category": "VFXMaskingKeying",
+        "description": "Node 01: Generate clean screen backing plate (IBKColour emulation)",
+        "display_name": "Node 01: IBK Clean Plate Generator",
+        "icon": "image"
+      }
+    },
+    {
+      "class_name": "IBKKeyerNode",
+      "file_path": "nodes/ibk_keyer_node.py",
+      "metadata": {
+        "category": "VFXMaskingKeying",
+        "description": "Node 02: Pull fine transmission alpha matte with pure-black background and pure-white core (IBKGizmo)",
+        "display_name": "Node 02: IBK Keyer",
+        "icon": "scissors"
+      }
+    },
+    {
+      "class_name": "ViTMaskExtractorNode",
+      "file_path": "nodes/vit_mask_extractor_node.py",
+      "metadata": {
+        "category": "VFXMaskingKeying",
+        "description": "Node 03: Vision Transformer (SAM 2 & ViTMatte) object tracking, trimap, and sub-pixel matting",
+        "display_name": "Node 03: ViT Mask Extractor",
+        "icon": "target"
+      }
+    },
+    {
+      "class_name": "VFXMatteRefinerNode",
+      "file_path": "nodes/vfx_matte_refiner_node.py",
+      "metadata": {
+        "category": "VFXMaskingKeying",
+        "description": "Node 04: Fuse ViT pure-white core with IBK edge, automatic polarity correction, and dual output (jitter-stabilized + raw)",
+        "display_name": "Node 04: VFX Matte Refiner & Fusion",
+        "icon": "sliders"
+      }
+    },
+    {
+      "class_name": "VFXMaskExportNode",
+      "file_path": "nodes/vfx_mask_export_node.py",
+      "metadata": {
+        "category": "VFXMaskingKeying",
+        "description": "Node 05: Export 4K UHD 32-bit float OpenEXR, 16-bit PNG, Premultiplied RGBA, and QA Red Overlay video",
+        "display_name": "Node 05: VFX Sequence Exporter",
+        "icon": "film"
+      }
+    }
+  ]
+}

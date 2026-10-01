@@ -1,0 +1,26 @@
+# ==============================================================================
+# VFX IBK Keying & ViT Masking Toolkit - Dependencies
+# ==============================================================================
+
+# Deep Learning & Computer Vision
+torch>=2.1.0
+torchvision>=0.16.0
+transformers>=4.44.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+scipy>=1.11.0
+Pillow>=10.0.0
+
+# VFX Format Support (16-bit/32-bit EXR & High-depth image sequence)
+openexr>=3.5.0
+imageio>=2.30.0
+imageio-ffmpeg>=0.5.0
+
+# Utilities & Config
+pyyaml>=6.0
+tqdm>=4.65.0
+pytest>=7.0.0
+
+# Optional / External:
+# For SAM 2 tracking:
+# pip install git+https://github.com/facebookresearch/sam2.git
