@@ -210,6 +210,10 @@ class IBKKeyerNode(DataNode):
         if clean_dir and Path(clean_dir).exists():
             clean_files = sorted(list(Path(clean_dir).glob("*.png")) + list(Path(clean_dir).glob("*.exr")))
 
+        # Synchronize edge mask frame count with clean plate sequence if multi-frame sequence is provided
+        if max_frames == 0 and len(clean_files) > 1:
+            limit = len(clean_files)
+
         frames = VideoIO.read_frames(input_video, max_frames=limit)
 
         from core.matte_fusion import MatteFusionEngine

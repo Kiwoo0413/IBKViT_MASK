@@ -131,6 +131,16 @@ class ViTMaskExtractorNode(DataNode):
         )
         self.add_parameter(
             Parameter(
+                name="reference_sequence_dir",
+                type="str",
+                default_value="",
+                tooltip="선택적: 프레임 수를 동기화할 Clean Plate 또는 Edge 마스크 폴더 경로",
+                display_name="Reference Sequence Dir (Optional)",
+                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
+            )
+        )
+        self.add_parameter(
+            Parameter(
                 name="output_dir",
                 type="str",
                 default_value="",
@@ -198,6 +208,7 @@ class ViTMaskExtractorNode(DataNode):
         erode_r = int(self.get_parameter_value("trimap_erode") or 12)
         dilate_r = int(self.get_parameter_value("trimap_dilate") or 15)
         max_frames = int(self.get_parameter_value("max_frames") or 0)
+        ref_dir = str(self.get_parameter_value("reference_sequence_dir") or "").strip()
         out_dir = str(self.get_parameter_value("output_dir") or "").strip()
 
         seed_points = parse_coords(seed_str)
@@ -214,6 +225,14 @@ class ViTMaskExtractorNode(DataNode):
         info = VideoIO.get_video_info(input_video)
         fps = info["fps"]
         limit = max_frames if max_frames > 0 else None
+
+        ref_files = []
+        if ref_dir and Path(ref_dir).exists():
+            ref_files = sorted(list(Path(ref_dir).glob("*.png")) + list(Path(ref_dir).glob("*.exr")))
+
+        # If a reference sequence (Edge matte or Clean plate) is provided, synchronize frame count!
+        if max_frames == 0 and len(ref_files) > 1:
+            limit = len(ref_files)
 
         frames = VideoIO.read_frames(input_video, max_frames=limit)
 
@@ -269,5 +288,5 @@ class ViTMaskExtractorNode(DataNode):
         self.set_parameter_value("core_mask_dir", str(core_dir))
         self.set_parameter_value("vit_alpha_dir", str(vit_dir))
         self.set_parameter_value("preview_video_path", preview_video)
-        self.set_parameter_value("frame_count", len(frames))
-        self.set_parameter_value("status", f"Extracted ViT masks for {len(frames)} frames.")
+        total_video_frames = info.get("frame_count", len(frames))
+        self.set_parameter_value("status", f"Extracted ViT masks for {len(frames)}/{total_video_frames} frames.")

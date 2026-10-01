@@ -182,7 +182,8 @@ class IBKCleanPlateNode(DataNode):
         video_preview = str(out_path / "clean_plate_preview.mp4")
         VideoIO.write_video(clean_frames, video_preview, fps=fps)
 
+        total_video_frames = info.get("frame_count", len(frames))
         self.set_parameter_value("clean_plate_dir", str(out_path))
         self.set_parameter_value("clean_plate_video", video_preview)
         self.set_parameter_value("frame_count", len(clean_frames))
-        self.set_parameter_value("status", f"Generated {len(clean_frames)} clean plate frames.")
+        self.set_parameter_value("status", f"Generated {len(clean_frames)}/{total_video_frames} clean plate frames.")
