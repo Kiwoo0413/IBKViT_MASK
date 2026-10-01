@@ -111,6 +111,16 @@ class VFXKeyingViTAllInOneNode(DataNode):
         )
         self.add_parameter(
             Parameter(
+                name="enable_adaptive_blur",
+                type="bool",
+                default_value=True,
+                tooltip="디포커스/모션블러 정도를 자동 감지하여 마스크 경계 폭을 가변 조절",
+                display_name="Adaptive Blur Detection",
+                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
+            )
+        )
+        self.add_parameter(
+            Parameter(
                 name="output_resolution",
                 type="str",
                 default_value="4k",
@@ -232,6 +242,7 @@ class VFXKeyingViTAllInOneNode(DataNode):
         export_fmt = str(self.get_parameter_value("export_format") or "exr").lower()
         max_frames = int(self.get_parameter_value("max_frames") or 0)
         out_dir_param = str(self.get_parameter_value("output_dir") or "").strip()
+        enable_adaptive_blur = bool(self.get_parameter_value("enable_adaptive_blur") if self.get_parameter_value("enable_adaptive_blur") is not None else True)
 
         seed_points = parse_coords(seed_str)
         box_coords = parse_box(box_str)
@@ -283,6 +294,7 @@ class VFXKeyingViTAllInOneNode(DataNode):
             box_coords=box_coords,
             screen_type=screen_type,
             temporal_factor=temporal_a,
+            enable_adaptive_blur=enable_adaptive_blur,
         )
 
         stab_mattes: List[np.ndarray] = []

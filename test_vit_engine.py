@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 import numpy as np
 import pytest
+import cv2
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -116,4 +117,51 @@ class TestViTEngine:
         assert np.all(raw_cores[1][30:90, 10:30] == 0.0)
         assert np.all(raw_envelopes[1][30:90, 10:30] == 0.0)
         assert np.all(stab_cores[1][30:90, 10:30] == 0.0)
+
+    def test_estimate_edge_blur_profile(self):
+        h, w = 128, 128
+        # 1. Sharp image
+        sharp_img = np.zeros((h, w, 3), dtype=np.uint8)
+        sharp_img[:, :] = [20, 220, 30]
+        sharp_img[30:90, 30:90] = [200, 60, 40]
+        mask = np.zeros((h, w), dtype=np.uint8)
+        mask[30:90, 30:90] = 255
+
+        e_sharp, d_sharp, blur_sharp = ViTEngine.estimate_edge_blur_profile(
+            sharp_img, mask, screen_type="green", base_erode=10, base_dilate=15
+        )
+        assert blur_sharp < 0.4
+        assert e_sharp <= 10
+
+        # 2. Defocused/blurred image
+        blurred_img = cv2.GaussianBlur(sharp_img, (21, 21), 9.0)
+        e_blur, d_blur, blur_val = ViTEngine.estimate_edge_blur_profile(
+            blurred_img, mask, screen_type="green", base_erode=10, base_dilate=15
+        )
+        assert blur_val > blur_sharp
+        assert d_blur >= d_sharp
+
+    def test_extract_vit_matte_roi_acceleration(self):
+        h, w = 128, 128
+        frame = np.zeros((h, w, 3), dtype=np.uint8)
+        frame[:, :] = [20, 220, 30]
+        frame[40:88, 40:88] = [210, 50, 40]
+        mask = np.zeros((h, w), dtype=np.uint8)
+        mask[40:88, 40:88] = 255
+
+        engine = ViTEngine()
+        res = engine.extract_vit_matte(
+            rgb_image=frame,
+            coarse_mask=mask,
+            enable_adaptive_blur=True,
+            enable_roi_crop=True,
+            roi_padding=16,
+            screen_type="green",
+        )
+
+        assert res.alpha.shape == (h, w)
+        assert np.min(res.alpha[res.trimap == 255]) == 1.0  # Solid core interior
+        assert np.max(res.alpha[res.trimap == 0]) == 0.0      # Solid black background
+        assert np.any((res.alpha > 0.0) & (res.alpha < 1.0)) # Valid sub-pixel edge
+
 
