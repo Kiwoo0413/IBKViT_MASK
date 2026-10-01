@@ -56,3 +56,6 @@ output/
 .vscode/
 .idea/
 *.swp
+
+# Research & Private Documentation
+docs/keying_and_matting_research_comparison.md
