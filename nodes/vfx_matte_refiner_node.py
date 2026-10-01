@@ -235,6 +235,12 @@ class VFXMatteRefinerNode(DataNode):
             guide_frames = VideoIO.read_frames(input_video, max_frames=len(edge_files))
             fps = VideoIO.get_video_info(input_video)["fps"]
 
+        # Screen type dynamic detection from input video if available
+        if len(guide_frames) > 0:
+            detected_screen = MatteFusionEngine.auto_detect_screen_type(guide_frames[0])
+            if screen_type in ("auto", "") or (screen_type == "green" and detected_screen == "blue"):
+                screen_type = detected_screen
+
         stab_mattes: List[np.ndarray] = []
         raw_mattes: List[np.ndarray] = []
         stab_previews: List[np.ndarray] = []
@@ -256,8 +262,10 @@ class VFXMatteRefinerNode(DataNode):
                 edge_m = edge_m[:, :, 0]
 
             core_m = None
-            if idx < len(core_files):
-                c_img = cv2.imread(str(core_files[idx]), cv2.IMREAD_UNCHANGED)
+            if core_files:
+                # If sequence of core files exists, match by index; if 1 static core mask, hold across all frames!
+                c_idx = min(idx, len(core_files) - 1)
+                c_img = cv2.imread(str(core_files[c_idx]), cv2.IMREAD_UNCHANGED)
                 if c_img is not None:
                     core_m = (c_img.astype(np.float32) / 255.0)
                     if core_m.ndim == 3:

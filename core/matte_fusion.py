@@ -239,11 +239,14 @@ class MatteFusionEngine:
         e = edge_matte.astype(np.float32)
         if e.max() > 1.0:
             e = e / 255.0
+        eh, ew = e.shape[:2]
 
         if core_matte is not None:
             c = core_matte.astype(np.float32)
             if c.max() > 1.0:
                 c = c / 255.0
+            if c.shape[:2] != (eh, ew):
+                c = cv2.resize(c, (ew, eh), interpolation=cv2.INTER_NEAREST)
             fill_core = self.config.use_core_fill if use_core_fill is None else use_core_fill
             if fill_core:
                 c = self.fill_core_holes(c)
@@ -254,6 +257,8 @@ class MatteFusionEngine:
             env = envelope_matte.astype(np.float32)
             if env.max() > 1.0:
                 env = env / 255.0
+            if env.shape[:2] != (eh, ew):
+                env = cv2.resize(env, (ew, eh), interpolation=cv2.INTER_LINEAR)
             # Non-destructive envelope fusion:
             # - Inside core: strictly 1.0 (pure white)
             # - Outside envelope: strictly 0.0 (pure black)

@@ -285,6 +285,7 @@ class ViTEngine:
             seed_points=seed_points,
             box_coords=box_coords,
             init_mask=detected_init_mask,
+            screen_type=screen_type,
         )
 
         raw_cores: List[np.ndarray] = []
@@ -410,6 +411,7 @@ class ViTEngine:
         point_labels: Optional[List[int]] = None,
         box_coords: Optional[List[float]] = None,
         init_mask: Optional[np.ndarray] = None,
+        screen_type: str = "green",
     ) -> List[np.ndarray]:
         """
         Track object across video frames using SAM 2 (Hiera/ViT).
@@ -431,6 +433,7 @@ class ViTEngine:
             seed_points=seed_points,
             box_coords=box_coords,
             init_mask=init_mask,
+            screen_type=screen_type,
         )
 
     @staticmethod
@@ -439,8 +442,9 @@ class ViTEngine:
         seed_points: Optional[List[Tuple[float, float]]] = None,
         box_coords: Optional[List[float]] = None,
         init_mask: Optional[np.ndarray] = None,
+        screen_type: str = "green",
     ) -> List[np.ndarray]:
-        """Propagate initial mask across frames using Lucas-Kanade / Farneback flow."""
+        """Propagate initial mask across frames using Lucas-Kanade / Farneback flow with robust per-frame refresh."""
         num_frames = len(frame_sequence)
         h, w = frame_sequence[0].shape[:2]
         masks: List[np.ndarray] = []
@@ -483,7 +487,6 @@ class ViTEngine:
                 current_mask = np.zeros((h, w), dtype=np.uint8)
                 cv2.ellipse(current_mask, (cx, cy), (rx, ry), 0, 0, 360, 255, -1)
 
-
         masks.append(current_mask.astype(np.float32) / 255.0)
 
         prev_gray = cv2.cvtColor(frame_sequence[0], cv2.COLOR_RGB2GRAY)
@@ -500,7 +503,20 @@ class ViTEngine:
             map_y = flow_map[:, :, 1] - flow[:, :, 1]
 
             warped = cv2.remap(current_mask, map_x, map_y, interpolation=cv2.INTER_LINEAR)
-            current_mask = (warped > 127).astype(np.uint8) * 255
+            warped_mask = (warped > 127).astype(np.uint8) * 255
+
+            # If no manual seed/box was given, combine with per-frame direct screen detection
+            # to guarantee that mask NEVER degrades or dissipates over long sequences!
+            if not seed_points and not box_coords:
+                direct_m = ViTEngine.detect_subject_coarse_mask(frame_sequence[i], screen_type=screen_type)
+                direct_uint8 = (direct_m * 255.0).astype(np.uint8)
+                if np.count_nonzero(direct_uint8 > 128) > (h * w * 0.005):
+                    current_mask = np.maximum(warped_mask, direct_uint8)
+                else:
+                    current_mask = warped_mask
+            else:
+                current_mask = warped_mask
+
             masks.append(current_mask.astype(np.float32) / 255.0)
             prev_gray = curr_gray
 

@@ -231,6 +231,7 @@ class ViTMaskExtractorNode(DataNode):
             seed_points=seed_points,
             box_coords=box_coords,
             init_mask=detected_init_mask,
+            screen_type=detected_screen,
         )
 
         core_mattes: List[np.ndarray] = []

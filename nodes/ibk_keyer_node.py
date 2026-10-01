@@ -209,8 +209,6 @@ class IBKKeyerNode(DataNode):
         clean_files = []
         if clean_dir and Path(clean_dir).exists():
             clean_files = sorted(list(Path(clean_dir).glob("*.png")) + list(Path(clean_dir).glob("*.exr")))
-            if len(clean_files) > 0 and (limit is None or len(clean_files) < limit):
-                limit = len(clean_files)
 
         frames = VideoIO.read_frames(input_video, max_frames=limit)
 
@@ -234,7 +232,8 @@ class IBKKeyerNode(DataNode):
         is_4k = res_opt == "4k"
 
         for idx, frame in enumerate(frames):
-            cp = clean_frames[idx] if idx < len(clean_frames) else None
+            # If clean_plate sequence is provided, match by index; if static 1-frame plate, hold across all frames!
+            cp = clean_frames[min(idx, len(clean_frames) - 1)] if clean_frames else None
 
             res = engine.execute_keying(
                 rgb_image=frame,
