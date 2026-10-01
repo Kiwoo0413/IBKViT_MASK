@@ -89,3 +89,31 @@ class TestViTEngine:
         # Deep center remains rock-solid pure white
         assert stab_core[1][16, 16] == 1.0
         assert stab_core[1][0, 0] == 0.0
+
+    def test_motion_frame_independence_zero_accumulation(self):
+        """Verify that moving subjects leave zero ghosting / residue across consecutive frames."""
+        h, w = 128, 128
+        f0 = np.zeros((h, w, 3), dtype=np.uint8)
+        f0[:, :] = [20, 220, 30]
+        f0[30:90, 10:30] = [200, 50, 40]
+
+        f1 = np.zeros((h, w, 3), dtype=np.uint8)
+        f1[:, :] = [20, 220, 30]
+        f1[30:90, 80:100] = [200, 50, 40]
+
+        engine = ViTEngine()
+        stab_cores, stab_envelopes, raw_cores, raw_envelopes = engine.track_and_stabilize_stream(
+            frame_sequence=[f0, f1],
+            screen_type="green",
+            erode_radius=3,
+            dilate_radius=5,
+        )
+
+        assert np.mean(raw_cores[0][35:85, 12:28]) > 0.9
+        assert np.all(raw_cores[0][30:90, 80:100] == 0.0)
+
+        assert np.mean(raw_cores[1][35:85, 82:98]) > 0.9
+        assert np.all(raw_cores[1][30:90, 10:30] == 0.0)
+        assert np.all(raw_envelopes[1][30:90, 10:30] == 0.0)
+        assert np.all(stab_cores[1][30:90, 10:30] == 0.0)
+

@@ -98,9 +98,9 @@ class VFXMatteRefinerNode(DataNode):
             Parameter(
                 name="temporal_smoothing",
                 type="float",
-                default_value=0.35,
-                tooltip="지터 방지 시간축 EMA 스무딩 가중치 (0.0=미적용, 0.35=권장 기본값, 높을수록 떨림 억제 강함)",
-                display_name="Temporal Smoothing (Jitter Filter)",
+                default_value=0.0,
+                tooltip="시간축 스무딩 가중치 (0.0=완전 프레임 독립/누적 없음, 높을수록 떨림 억제)",
+                display_name="Temporal Smoothing (0.0=Independent)",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
             )
         )
@@ -192,7 +192,8 @@ class VFXMatteRefinerNode(DataNode):
         screen_type = str(self.get_parameter_value("screen_type") or "green").lower()
         auto_polarity = bool(self.get_parameter_value("auto_detect_polarity") if self.get_parameter_value("auto_detect_polarity") is not None else True)
         invert_m = bool(self.get_parameter_value("invert_matte") or False)
-        temporal_a = float(self.get_parameter_value("temporal_smoothing") or 0.35)
+        ts_val = self.get_parameter_value("temporal_smoothing")
+        temporal_a = float(ts_val) if ts_val is not None else 0.0
         res_opt = str(self.get_parameter_value("output_resolution") or "4k").lower()
         out_dir_param = str(self.get_parameter_value("output_dir") or "").strip()
 
@@ -235,6 +236,12 @@ class VFXMatteRefinerNode(DataNode):
             guide_frames = VideoIO.read_frames(input_video, max_frames=len(edge_files))
             fps = VideoIO.get_video_info(input_video)["fps"]
 
+        # Screen type dynamic detection from input video if available
+        if len(guide_frames) > 0:
+            detected_screen = MatteFusionEngine.auto_detect_screen_type(guide_frames[0])
+            if screen_type in ("auto", "") or (screen_type == "green" and detected_screen == "blue"):
+                screen_type = detected_screen
+
         stab_mattes: List[np.ndarray] = []
         raw_mattes: List[np.ndarray] = []
         stab_previews: List[np.ndarray] = []
@@ -256,8 +263,10 @@ class VFXMatteRefinerNode(DataNode):
                 edge_m = edge_m[:, :, 0]
 
             core_m = None
-            if idx < len(core_files):
-                c_img = cv2.imread(str(core_files[idx]), cv2.IMREAD_UNCHANGED)
+            if core_files:
+                # If sequence of core files exists, match by index; if 1 static core mask, hold across all frames!
+                c_idx = min(idx, len(core_files) - 1)
+                c_img = cv2.imread(str(core_files[c_idx]), cv2.IMREAD_UNCHANGED)
                 if c_img is not None:
                     core_m = (c_img.astype(np.float32) / 255.0)
                     if core_m.ndim == 3:
@@ -301,7 +310,6 @@ class VFXMatteRefinerNode(DataNode):
         self.set_parameter_value("raw_matte_dir", str(raw_dir))
         self.set_parameter_value("stabilized_video_path", stab_video)
         self.set_parameter_value("raw_video_path", raw_video)
+        total_video_frames = VideoIO.get_video_info(input_video)["frame_count"] if input_video and Path(input_video).exists() else len(stab_mattes)
         self.set_parameter_value("frame_count", len(stab_mattes))
-        self.set_parameter_value(
-            "status", f"Generated {len(stab_mattes)} frames (Stabilized + Raw) in {base_out_dir}"
-        )
+        self.set_parameter_value("status", f"Generated {len(stab_mattes)}/{total_video_frames} frames (Stabilized + Raw) in {base_out_dir}")

@@ -103,9 +103,9 @@ class VFXKeyingViTAllInOneNode(DataNode):
             Parameter(
                 name="temporal_smoothing",
                 type="float",
-                default_value=0.35,
-                tooltip="지터 방지 시간축 EMA 스무딩 가중치 (0.0=미적용, 0.35=권장 기본값, 높을수록 떨림 억제 강함)",
-                display_name="Temporal Smoothing (Jitter Filter)",
+                default_value=0.0,
+                tooltip="시간축 스무딩 가중치 (0.0=완전 프레임 독립/누적 없음, 높을수록 떨림 억제)",
+                display_name="Temporal Smoothing (0.0=Independent)",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
             )
         )
@@ -226,7 +226,8 @@ class VFXKeyingViTAllInOneNode(DataNode):
         box_str = str(self.get_parameter_value("box_coords") or "").strip()
         auto_polarity = bool(self.get_parameter_value("auto_detect_polarity") if self.get_parameter_value("auto_detect_polarity") is not None else True)
         invert_m = bool(self.get_parameter_value("invert_matte") or False)
-        temporal_a = float(self.get_parameter_value("temporal_smoothing") or 0.35)
+        ts_val = self.get_parameter_value("temporal_smoothing")
+        temporal_a = float(ts_val) if ts_val is not None else 0.0
         res_opt = str(self.get_parameter_value("output_resolution") or "native").lower()
         export_fmt = str(self.get_parameter_value("export_format") or "exr").lower()
         max_frames = int(self.get_parameter_value("max_frames") or 0)
