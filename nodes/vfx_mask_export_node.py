@@ -111,6 +111,16 @@ class VFXMaskExportNode(DataNode):
         )
         self.add_parameter(
             Parameter(
+                name="frame_count",
+                type="int",
+                default_value=0,
+                tooltip="내보내기 완료된 총 프레임 수",
+                display_name="Frame Count",
+                allowed_modes={ParameterMode.OUTPUT},
+            )
+        )
+        self.add_parameter(
+            Parameter(
                 name="status",
                 type="str",
                 tooltip="작업 완료 상태",
@@ -189,6 +199,7 @@ class VFXMaskExportNode(DataNode):
 
         self.set_parameter_value("exported_dir", str(seq_out_dir))
         self.set_parameter_value("red_overlay_video_path", red_video)
+        self.set_parameter_value("frame_count", len(written_files))
         self.set_parameter_value(
             "status", f"Successfully exported {len(written_files)} frames in {export_fmt.upper()} ({res_opt.upper()})."
         )

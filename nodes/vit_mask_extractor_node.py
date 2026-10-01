@@ -170,6 +170,16 @@ class ViTMaskExtractorNode(DataNode):
         )
         self.add_parameter(
             Parameter(
+                name="frame_count",
+                type="int",
+                default_value=0,
+                tooltip="추출 완료된 총 프레임 수",
+                display_name="Frame Count",
+                allowed_modes={ParameterMode.OUTPUT},
+            )
+        )
+        self.add_parameter(
+            Parameter(
                 name="status",
                 type="str",
                 tooltip="실행 상태 요약",
@@ -258,4 +268,5 @@ class ViTMaskExtractorNode(DataNode):
         self.set_parameter_value("core_mask_dir", str(core_dir))
         self.set_parameter_value("vit_alpha_dir", str(vit_dir))
         self.set_parameter_value("preview_video_path", preview_video)
+        self.set_parameter_value("frame_count", len(frames))
         self.set_parameter_value("status", f"Extracted ViT masks for {len(frames)} frames.")

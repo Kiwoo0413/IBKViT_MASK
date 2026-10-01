@@ -118,6 +118,16 @@ class IBKCleanPlateNode(DataNode):
         )
         self.add_parameter(
             Parameter(
+                name="frame_count",
+                type="int",
+                default_value=0,
+                tooltip="처리 완료된 총 프레임 수",
+                display_name="Frame Count",
+                allowed_modes={ParameterMode.OUTPUT},
+            )
+        )
+        self.add_parameter(
+            Parameter(
                 name="status",
                 type="str",
                 tooltip="실행 상태 요약",
@@ -174,4 +184,5 @@ class IBKCleanPlateNode(DataNode):
 
         self.set_parameter_value("clean_plate_dir", str(out_path))
         self.set_parameter_value("clean_plate_video", video_preview)
+        self.set_parameter_value("frame_count", len(clean_frames))
         self.set_parameter_value("status", f"Generated {len(clean_frames)} clean plate frames.")

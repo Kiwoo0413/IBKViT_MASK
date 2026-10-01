@@ -164,6 +164,16 @@ class VFXMatteRefinerNode(DataNode):
         )
         self.add_parameter(
             Parameter(
+                name="frame_count",
+                type="int",
+                default_value=0,
+                tooltip="합성 완료된 총 프레임 수",
+                display_name="Frame Count",
+                allowed_modes={ParameterMode.OUTPUT},
+            )
+        )
+        self.add_parameter(
+            Parameter(
                 name="status",
                 type="str",
                 tooltip="작업 완료 상태",
@@ -291,6 +301,7 @@ class VFXMatteRefinerNode(DataNode):
         self.set_parameter_value("raw_matte_dir", str(raw_dir))
         self.set_parameter_value("stabilized_video_path", stab_video)
         self.set_parameter_value("raw_video_path", raw_video)
+        self.set_parameter_value("frame_count", len(stab_mattes))
         self.set_parameter_value(
             "status", f"Generated {len(stab_mattes)} frames (Stabilized + Raw) in {base_out_dir}"
         )

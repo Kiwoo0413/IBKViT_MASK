@@ -163,6 +163,16 @@ class IBKKeyerNode(DataNode):
         )
         self.add_parameter(
             Parameter(
+                name="frame_count",
+                type="int",
+                default_value=0,
+                tooltip="추출 완료된 총 프레임 수",
+                display_name="Frame Count",
+                allowed_modes={ParameterMode.OUTPUT},
+            )
+        )
+        self.add_parameter(
+            Parameter(
                 name="status",
                 type="str",
                 tooltip="작업 완료 상태",
@@ -196,6 +206,12 @@ class IBKKeyerNode(DataNode):
         fps = info["fps"]
         limit = max_frames if max_frames > 0 else None
 
+        clean_files = []
+        if clean_dir and Path(clean_dir).exists():
+            clean_files = sorted(list(Path(clean_dir).glob("*.png")) + list(Path(clean_dir).glob("*.exr")))
+            if len(clean_files) > 0 and (limit is None or len(clean_files) < limit):
+                limit = len(clean_files)
+
         frames = VideoIO.read_frames(input_video, max_frames=limit)
 
         from core.matte_fusion import MatteFusionEngine
@@ -207,8 +223,7 @@ class IBKKeyerNode(DataNode):
         engine = IBKEngine(screen_type=screen_type, red_weight=red_w, blue_weight=blue_w)
 
         clean_frames = []
-        if clean_dir and Path(clean_dir).exists():
-            clean_files = sorted(list(Path(clean_dir).glob("*.png")) + list(Path(clean_dir).glob("*.exr")))
+        if clean_files:
             for cf in clean_files[: len(frames)]:
                 c_bgr = cv2.imread(str(cf))
                 if c_bgr is not None:
@@ -250,4 +265,5 @@ class IBKKeyerNode(DataNode):
 
         self.set_parameter_value("alpha_matte_dir", str(m_path))
         self.set_parameter_value("matte_preview_video", matte_video)
+        self.set_parameter_value("frame_count", len(mattes))
         self.set_parameter_value("status", f"Keyed {len(mattes)} frames successfully in {res_opt.upper()}.")
