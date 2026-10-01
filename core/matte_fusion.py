@@ -50,6 +50,27 @@ class MatteFusionEngine:
         """Reset temporal smoothing buffer between video clips."""
         self._prev_frame_matte = None
 
+    @staticmethod
+    def auto_detect_screen_type(rgb_frame: np.ndarray) -> str:
+        """
+        Automatically detect whether footage is green screen or blue screen.
+        """
+        f = rgb_frame.astype(np.float32)
+        if f.max() > 1.0:
+            f = f / 255.0
+        r = f[:, :, 0]
+        g = f[:, :, 1]
+        b = f[:, :, 2]
+        green_diff = g - (0.5 * r + 0.5 * b)
+        blue_diff = b - (0.5 * r + 0.5 * g)
+        green_ratio = float(np.mean(green_diff > 0.05))
+        blue_ratio = float(np.mean(blue_diff > 0.05))
+        if blue_ratio > green_ratio and blue_ratio > 0.10:
+            return "blue"
+        elif green_ratio > blue_ratio and green_ratio > 0.10:
+            return "green"
+        return "green"
+
     # -------------------------------------------------------------------------
     # Polarity Detection & Auto-Inversion
     # -------------------------------------------------------------------------

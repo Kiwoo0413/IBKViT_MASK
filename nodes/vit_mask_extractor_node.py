@@ -207,11 +207,20 @@ class ViTMaskExtractorNode(DataNode):
 
         frames = VideoIO.read_frames(input_video, max_frames=limit)
 
+        from core.matte_fusion import MatteFusionEngine
+        detected_screen = "green"
+        detected_init_mask = None
+        if len(frames) > 0:
+            detected_screen = MatteFusionEngine.auto_detect_screen_type(frames[0])
+            if not seed_points and not box_coords:
+                detected_init_mask = engine.detect_subject_coarse_mask(frames[0], screen_type=detected_screen)
+
         # 1. Spatio-temporal tracking
         coarse_masks = engine.track_sam2_frames(
             frame_sequence=frames,
             seed_points=seed_points,
             box_coords=box_coords,
+            init_mask=detected_init_mask,
         )
 
         core_mattes: List[np.ndarray] = []

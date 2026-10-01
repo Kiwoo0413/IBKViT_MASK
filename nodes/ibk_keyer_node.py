@@ -55,8 +55,8 @@ class IBKKeyerNode(DataNode):
             Parameter(
                 name="screen_type",
                 type="str",
-                default_value="green",
-                tooltip="스크린 타입 ('green', 'blue')",
+                default_value="auto",
+                tooltip="스크린 타입 ('auto': 영상 자동 감지, 'green', 'blue')",
                 display_name="Screen Type",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
             )
@@ -192,12 +192,19 @@ class IBKKeyerNode(DataNode):
         m_path = out_path / "mattes"
         m_path.mkdir(parents=True, exist_ok=True)
 
-        engine = IBKEngine(screen_type=screen_type, red_weight=red_w, blue_weight=blue_w)
         info = VideoIO.get_video_info(input_video)
         fps = info["fps"]
         limit = max_frames if max_frames > 0 else None
 
         frames = VideoIO.read_frames(input_video, max_frames=limit)
+
+        from core.matte_fusion import MatteFusionEngine
+        if len(frames) > 0:
+            detected_screen = MatteFusionEngine.auto_detect_screen_type(frames[0])
+            if screen_type in ("auto", "") or (screen_type == "green" and detected_screen == "blue"):
+                screen_type = detected_screen
+
+        engine = IBKEngine(screen_type=screen_type, red_weight=red_w, blue_weight=blue_w)
 
         clean_frames = []
         if clean_dir and Path(clean_dir).exists():

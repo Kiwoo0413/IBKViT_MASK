@@ -53,8 +53,8 @@ class VFXKeyingViTAllInOneNode(DataNode):
             Parameter(
                 name="screen_type",
                 type="str",
-                default_value="green",
-                tooltip="배경 스크린 타입 ('green', 'blue')",
+                default_value="auto",
+                tooltip="배경 스크린 타입 ('auto': 인풋 영상 자동 감지, 'green', 'blue')",
                 display_name="Screen Type",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
             )
@@ -114,7 +114,7 @@ class VFXKeyingViTAllInOneNode(DataNode):
                 name="output_resolution",
                 type="str",
                 default_value="4k",
-                tooltip="출력 해상도 ('4k': 3840x2160 UHD, 'native': 원본 해상도)",
+                tooltip="출력 해상도 ('4k': 3840x2160 UHD 업스케일링, 'native': 인풋 영상 해상도 유지)",
                 display_name="Output Resolution",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
             )
@@ -134,7 +134,7 @@ class VFXKeyingViTAllInOneNode(DataNode):
                 name="max_frames",
                 type="int",
                 default_value=0,
-                tooltip="처리할 최대 프레임 수 (0 = 전체)",
+                tooltip="처리할 최대 프레임 수 (0 = 인풋 영상 전체 프레임 자동 감지)",
                 display_name="Max Frames",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
             )
@@ -217,10 +217,30 @@ class VFXKeyingViTAllInOneNode(DataNode):
         auto_polarity = bool(self.get_parameter_value("auto_detect_polarity") if self.get_parameter_value("auto_detect_polarity") is not None else True)
         invert_m = bool(self.get_parameter_value("invert_matte") or False)
         temporal_a = float(self.get_parameter_value("temporal_smoothing") or 0.35)
-        res_opt = str(self.get_parameter_value("output_resolution") or "4k").lower()
+        res_opt = str(self.get_parameter_value("output_resolution") or "native").lower()
         export_fmt = str(self.get_parameter_value("export_format") or "exr").lower()
         max_frames = int(self.get_parameter_value("max_frames") or 0)
         out_dir_param = str(self.get_parameter_value("output_dir") or "").strip()
+
+        seed_points = parse_coords(seed_str)
+        box_coords = parse_box(box_str)
+
+        info = VideoIO.get_video_info(input_video)
+        fps = info["fps"]
+        in_w = info["width"]
+        in_h = info["height"]
+        total_frames = info["frame_count"]
+        limit = max_frames if max_frames > 0 else None
+
+        frames = VideoIO.read_frames(input_video, max_frames=limit)
+        num_frames = len(frames)
+        is_4k = res_opt == "4k"
+
+        # Screen type dynamic detection from input video
+        if num_frames > 0:
+            detected_screen = MatteFusionEngine.auto_detect_screen_type(frames[0])
+            if screen_type in ("auto", "") or (screen_type == "green" and detected_screen == "blue"):
+                screen_type = detected_screen
 
         # Dynamic Output Directory: automatically inside source video's folder
         base_out_dir = Path(VideoIO.resolve_output_dir(input_video, custom_output_dir=out_dir_param, subfolder_suffix="masks_4k"))
@@ -229,17 +249,6 @@ class VFXKeyingViTAllInOneNode(DataNode):
         raw_seq_dir = base_out_dir / "raw" / export_fmt
         stab_seq_dir.mkdir(parents=True, exist_ok=True)
         raw_seq_dir.mkdir(parents=True, exist_ok=True)
-
-        seed_points = parse_coords(seed_str)
-        box_coords = parse_box(box_str)
-
-        info = VideoIO.get_video_info(input_video)
-        fps = info["fps"]
-        limit = max_frames if max_frames > 0 else None
-
-        frames = VideoIO.read_frames(input_video, max_frames=limit)
-        num_frames = len(frames)
-        is_4k = res_opt == "4k"
 
         # 1. Initialize Engines
         ibk_eng = IBKEngine(screen_type=screen_type)
@@ -348,6 +357,8 @@ class VFXKeyingViTAllInOneNode(DataNode):
         self.set_parameter_value("stabilized_video_path", stab_video)
         self.set_parameter_value("raw_video_path", raw_video)
         self.set_parameter_value("red_overlay_video_path", red_video)
+        res_display = "4K UHD" if is_4k else f"{in_w}x{in_h}"
         self.set_parameter_value(
-            "status", f"Completed dual 4K pipeline for {num_frames} frames in {base_out_dir}"
+            "status",
+            f"Completed: {num_frames}/{total_frames} frames ({res_display} @ {fps:.2f}fps, Screen: {screen_type}) in {base_out_dir}",
         )

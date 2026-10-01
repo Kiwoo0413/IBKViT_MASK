@@ -40,8 +40,8 @@ class IBKCleanPlateNode(DataNode):
             Parameter(
                 name="screen_type",
                 type="str",
-                default_value="green",
-                tooltip="스크린 타입 ('green', 'blue', 'custom')",
+                default_value="auto",
+                tooltip="스크린 타입 ('auto': 영상 자동 감지, 'green', 'blue', 'custom')",
                 display_name="Screen Type",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
             )
@@ -142,12 +142,19 @@ class IBKCleanPlateNode(DataNode):
         out_path = Path(out_dir)
         out_path.mkdir(parents=True, exist_ok=True)
 
-        engine = IBKEngine(screen_type=screen_type)
         info = VideoIO.get_video_info(input_video)
         fps = info["fps"]
         limit = max_frames if max_frames > 0 else None
 
         frames = VideoIO.read_frames(input_video, max_frames=limit)
+
+        from core.matte_fusion import MatteFusionEngine
+        if len(frames) > 0:
+            detected_screen = MatteFusionEngine.auto_detect_screen_type(frames[0])
+            if screen_type in ("auto", "") or (screen_type == "green" and detected_screen == "blue"):
+                screen_type = detected_screen
+
+        engine = IBKEngine(screen_type=screen_type)
         clean_frames = []
 
         import cv2

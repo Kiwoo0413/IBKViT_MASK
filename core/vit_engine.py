@@ -40,7 +40,7 @@ class ViTEngine:
     def __init__(
         self,
         device: Optional[str] = None,
-        vitmatte_model_id: str = "hitorilabs/vitmatte-small",
+        vitmatte_model_id: str = "hustvl/vitmatte-small-composition-1k",
         sam2_model_cfg: str = "configs/sam2.1/sam2.1_hiera_b+.yaml",
         sam2_checkpoint: Optional[str] = None,
     ) -> None:
@@ -274,17 +274,17 @@ class ViTEngine:
             return [], [], [], []
 
         # If no manual seed or box provided, automatically detect initial coarse mask
+        # IMPORTANT: Pass the actual contour-based coarse mask shape, NOT a bounding box,
+        # to avoid rectangular white-box artifacts in the fallback optical flow tracker.
+        detected_init_mask: Optional[np.ndarray] = None
         if not seed_points and not box_coords:
-            init_mask = self.detect_subject_coarse_mask(frame_sequence[0], screen_type=screen_type)
-            coords = cv2.findNonZero((init_mask > 0.5).astype(np.uint8))
-            if coords is not None:
-                x, y, bw, bh = cv2.boundingRect(coords)
-                box_coords = [float(x), float(y), float(x + bw), float(y + bh)]
+            detected_init_mask = self.detect_subject_coarse_mask(frame_sequence[0], screen_type=screen_type)
 
         coarse_masks = self.track_sam2_frames(
             frame_sequence=frame_sequence,
             seed_points=seed_points,
             box_coords=box_coords,
+            init_mask=detected_init_mask,
         )
 
         raw_cores: List[np.ndarray] = []
@@ -409,6 +409,7 @@ class ViTEngine:
         seed_points: Optional[List[Tuple[float, float]]] = None,
         point_labels: Optional[List[int]] = None,
         box_coords: Optional[List[float]] = None,
+        init_mask: Optional[np.ndarray] = None,
     ) -> List[np.ndarray]:
         """
         Track object across video frames using SAM 2 (Hiera/ViT).
@@ -425,45 +426,67 @@ class ViTEngine:
         except Exception as e:
             logger.info("SAM 2 not loaded or configured (%s). Using adaptive ViT/Contour tracker.", e)
 
-        return self._adaptive_flow_track(frame_sequence, seed_points, box_coords)
+        return self._adaptive_flow_track(
+            frame_sequence=frame_sequence,
+            seed_points=seed_points,
+            box_coords=box_coords,
+            init_mask=init_mask,
+        )
 
     @staticmethod
     def _adaptive_flow_track(
         frame_sequence: List[np.ndarray],
         seed_points: Optional[List[Tuple[float, float]]] = None,
         box_coords: Optional[List[float]] = None,
+        init_mask: Optional[np.ndarray] = None,
     ) -> List[np.ndarray]:
         """Propagate initial mask across frames using Lucas-Kanade / Farneback flow."""
         num_frames = len(frame_sequence)
         h, w = frame_sequence[0].shape[:2]
         masks: List[np.ndarray] = []
 
-        init_mask = np.zeros((h, w), dtype=np.uint8)
-        if box_coords is not None and len(box_coords) == 4:
+        if init_mask is not None:
+            if init_mask.dtype != np.uint8:
+                current_mask = (np.clip(init_mask, 0.0, 1.0) * 255.0).astype(np.uint8)
+            else:
+                current_mask = init_mask.copy()
+        elif box_coords is not None and len(box_coords) == 4:
             x1, y1, x2, y2 = [int(v) for v in box_coords]
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(w, x2), min(h, y2)
-            init_mask[y1:y2, x1:x2] = 255
+            current_mask = np.zeros((h, w), dtype=np.uint8)
+            crop = frame_sequence[0][y1:y2, x1:x2]
+            if crop.size > 0:
+                from core.matte_fusion import MatteFusionEngine
+                saliency = MatteFusionEngine.retrack_object_saliency(crop, min_distance_from_edge=0.0)
+                if np.any(saliency > 0.1):
+                    current_mask[y1:y2, x1:x2] = (saliency * 255.0).astype(np.uint8)
+                else:
+                    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                    rx, ry = (x2 - x1) // 2, (y2 - y1) // 2
+                    cv2.ellipse(current_mask, (cx, cy), (rx, ry), 0, 0, 360, 255, -1)
+            else:
+                current_mask[y1:y2, x1:x2] = 255
         elif seed_points is not None and len(seed_points) > 0:
+            current_mask = np.zeros((h, w), dtype=np.uint8)
             for pt in seed_points:
                 px, py = int(pt[0]), int(pt[1])
-                cv2.circle(init_mask, (px, py), radius=max(20, min(h, w) // 15), color=255, thickness=-1)
+                cv2.circle(current_mask, (px, py), radius=max(20, min(h, w) // 15), color=255, thickness=-1)
         else:
-            # Extract organic subject saliency mask from initial frame instead of drawing a synthetic rectangle box
             from core.matte_fusion import MatteFusionEngine
             saliency = MatteFusionEngine.retrack_object_saliency(frame_sequence[0], min_distance_from_edge=0.0)
             if np.any(saliency > 0.1):
-                init_mask = (saliency * 255.0).astype(np.uint8)
+                current_mask = (saliency * 255.0).astype(np.uint8)
             else:
                 cx, cy = w // 2, h // 2
                 rx, ry = w // 4, h // 4
-                cv2.ellipse(init_mask, (cx, cy), (rx, ry), 0, 0, 360, 255, -1)
+                current_mask = np.zeros((h, w), dtype=np.uint8)
+                cv2.ellipse(current_mask, (cx, cy), (rx, ry), 0, 0, 360, 255, -1)
 
 
-        masks.append(init_mask.astype(np.float32) / 255.0)
+        masks.append(current_mask.astype(np.float32) / 255.0)
 
         prev_gray = cv2.cvtColor(frame_sequence[0], cv2.COLOR_RGB2GRAY)
-        current_mask = init_mask.copy()
 
         for i in range(1, num_frames):
             curr_gray = cv2.cvtColor(frame_sequence[i], cv2.COLOR_RGB2GRAY)
