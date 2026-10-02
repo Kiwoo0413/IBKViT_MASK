@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
@@ -390,7 +392,7 @@ class ViTEngine:
     # -------------------------------------------------------------------------
 
     def _load_vitmatte(self) -> None:
-        """Lazy load Hugging Face VitMatte model and image processor."""
+        """Lazy load Hugging Face VitMatte model and image processor, with auto-download if missing."""
         if self._vitmatte_model is not None:
             return
 
@@ -405,8 +407,22 @@ class ViTEngine:
             ).to(self.device)
             self._vitmatte_model.eval()
         except Exception as e:
-            logger.warning("Could not load Hugging Face VitMatte (%s). Falling back to guided filter matting.", e)
-            self._vitmatte_model = False
+            try:
+                from huggingface_hub import snapshot_download
+
+                logger.info("ViTMatte not found locally. Initiating auto-download for %s...", self.vitmatte_model_id)
+                snapshot_download(repo_id=self.vitmatte_model_id, resume_download=True)
+                self._vitmatte_processor = VitMatteImageProcessor.from_pretrained(self.vitmatte_model_id)
+                self._vitmatte_model = VitMatteForImageMatting.from_pretrained(
+                    self.vitmatte_model_id,
+                    torch_dtype=torch.float32 if self.device == "cpu" else torch.float16,
+                ).to(self.device)
+                self._vitmatte_model.eval()
+                logger.info("ViTMatte model downloaded and loaded successfully.")
+                return
+            except Exception as dl_err:
+                logger.warning("Could not auto-download or load ViTMatte (%s / %s). Falling back to guided filter.", e, dl_err)
+                self._vitmatte_model = False
 
     def predict_vitmatte(
         self,
@@ -487,8 +503,54 @@ class ViTEngine:
         return np.clip(refined, 0.0, 1.0).astype(np.float32)
 
     # -------------------------------------------------------------------------
-    # SAM 2 Spatio-Temporal Tracking Integration
+    # SAM 2 Spatio-Temporal Tracking Integration & Model Resolution
     # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _resolve_sam2_paths(
+        checkpoint: Optional[str] = None,
+        model_cfg: Optional[str] = None,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Automatically locate SAM 2 checkpoint (.pt) and config (.yaml) in local Hugging Face cache
+        if not explicitly provided or found on disk.
+        """
+        if checkpoint and os.path.exists(checkpoint):
+            return checkpoint, model_cfg
+
+        # Try searching Hugging Face cache
+        try:
+            from huggingface_hub import scan_cache_dir
+
+            cache = scan_cache_dir()
+            for repo in cache.repos:
+                if "sam2" in repo.repo_id:
+                    for snap in repo.snapshots:
+                        p_snap = Path(snap)
+                        pt_file = p_snap / "sam2.1_hiera_large.pt"
+                        cfg_file = p_snap / "sam2.1_hiera_l.yaml"
+                        if pt_file.exists():
+                            logger.info("Auto-discovered SAM 2 checkpoint from HF cache: %s", pt_file)
+                            return str(pt_file), str(cfg_file) if cfg_file.exists() else model_cfg
+        except Exception as e:
+            logger.debug("Could not inspect HF cache for SAM 2: %s", e)
+
+        return checkpoint, model_cfg
+
+    @classmethod
+    def ensure_models_downloaded(cls) -> bool:
+        """
+        Verify and ensure that ViTMatte and SAM 2 models are downloaded locally
+        and synchronized with Griptape Nodes Desktop.
+        """
+        try:
+            from scripts.download_models import main as dl_main
+
+            return dl_main() == 0
+        except Exception as ex:
+            logger.warning("Auto model download verification failed: %s", ex)
+            return False
+
 
     def track_sam2_frames(
         self,
@@ -509,8 +571,9 @@ class ViTEngine:
         try:
             from sam2.build_sam import build_sam2_video_predictor
 
-            predictor = build_sam2_video_predictor(self.sam2_model_cfg, self.sam2_checkpoint, device=self.device)
-            logger.info("SAM 2 Video Predictor initialized.")
+            ckpt, cfg = self._resolve_sam2_paths(self.sam2_checkpoint, self.sam2_model_cfg)
+            predictor = build_sam2_video_predictor(cfg, ckpt, device=self.device)
+            logger.info("SAM 2 Video Predictor initialized with checkpoint: %s", ckpt)
         except Exception as e:
             logger.info("SAM 2 not loaded or configured (%s). Using adaptive ViT/Contour tracker.", e)
 

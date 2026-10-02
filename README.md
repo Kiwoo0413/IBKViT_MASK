@@ -98,21 +98,40 @@ pip install -r requirements.txt
 pip install git+https://github.com/facebookresearch/sam2.git
 ```
 
-### 2. Griptape Nodes Desktop 등록
+### 2. 필수 모델 다운로드 및 Griptape 동기화
 
-`%APPDATA%\Griptape Nodes\xdg_config_home\griptape_nodes\griptape_nodes_config.json` 파일의 `libraries_to_register` 목록에 해당 라이브러리의 매니페스트 경로를 추가합니다:
+라이브러리 등록 시 Griptape Nodes Desktop에서 모델을 자동으로 감지하고 다운로드하도록 매니페스트(`griptape_nodes_library.json`)에 모델 카탈로그가 등록되어 있습니다.
+
+터미널에서 원클릭으로 필요한 모든 모델(`ViTMatte`, `SAM 2.1`)을 즉시 다운로드하고 Griptape Model Manager와 동기화하려면 다음 명령어를 실행합니다:
+
+```bash
+python scripts/download_models.py
+```
+
+*설치/다운로드 상태만 빠르게 검증할 때:*
+```bash
+python scripts/download_models.py --verify-only
+```
+
+### 3. Griptape Nodes Desktop 등록
+
+`%APPDATA%\Griptape Nodes\xdg_config_home\griptape_nodes\griptape_nodes_config.json` 파일의 `libraries_to_register` 목록에 해당 라이브러리의 매니페스트 경로를 추가합니다 (또한 `models_to_download`에 모델들이 자동 등록되어 Griptape 초기화 시 자동 관리됩니다):
 
 ```json
 "libraries_to_register": [
   "D:\\AI\\GripTape\\libraries\\IBKViT_MASK\\griptape_nodes_library.json"
+],
+"models_to_download": [
+  "hustvl/vitmatte-small-composition-1k",
+  "facebook/sam2.1-hiera-large"
 ]
 ```
 
-### 3. Griptape Nodes Desktop에서 새로고침
+### 4. Griptape Nodes Desktop에서 새로고침
 
 1. Griptape Nodes Desktop 실행
 2. 좌측 하단의 **Refresh Libraries** 버튼 클릭 (또는 Engine Restart)
-3. 노드 라이브러리 목록에 **`VFX Keying & ViT Masking`** 카테고리가 나타납니다.
+3. 노드 라이브러리 목록에 **`VFX Keying & ViT Masking`** 카테고리가 나타나며 모델이 즉시 연동됩니다.
 
 ---
 
