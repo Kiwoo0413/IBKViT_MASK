@@ -2,10 +2,11 @@
 name: iterative-tool-development
 description: >-
   Standardized methodology and operational workflow for developing, testing,
-  host-syncing, and iteratively refining custom tools, node libraries, and domain engines.
-  Use when architecting tools from scratch, decoupling core algorithms from host frameworks,
-  executing synthetic TDD validation, synchronizing with host desktop runtimes, or tuning
-  numerical boundary precision based on user feedback.
+  host-syncing, and iteratively refining custom tools, node libraries, and domain engines
+  (e.g., Griptape, Nuke, ComfyUI, VFX/AI toolkits).
+  Use whenever architecting tools from scratch, developing custom node libraries like this project,
+  decoupling core algorithms from host frameworks, executing synthetic TDD validation,
+  managing workspace-relative AI models, or synchronizing with host desktop runtimes.
 ---
 
 # Iterative Tool Development & Validation Workflow
@@ -41,10 +42,10 @@ cleanliness, zero host coupling, robust mathematical precision, and rapid feedba
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ Phase 4: Host Environment Discovery & Safe Synchronization             │
+│ Phase 4: Host Environment Discovery, Relative Paths & Model Sync       │
 │ • Inspect host config files (AppData/xdg, manifests, venvs)           │
-│ • Sync code to host library paths while strictly preserving assets     │
-│ • Verify tests and imports directly inside the host's virtualenv       │
+│ • Use workspace-relative paths for libraries and models                │
+│ • Handle PEP 668 external venvs & graceful multi-tier fallbacks       │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
@@ -67,13 +68,13 @@ cleanliness, zero host coupling, robust mathematical precision, and rapid feedba
 
 ### Phase 1: Clarification & Guardrails Before Action
 
-When a user requests to "delete everything and start over" or overhaul a tool:
-1. **Never perform blind deletion**: Irreversible data loss breaks trust.
+When a user requests to "clean up files", "delete everything and start over", or overhaul a tool:
+1. **Never perform blind deletion**: Irreversible data loss breaks trust. Always present candidates and receive explicit confirmation before deleting files.
 2. **Clarify three pillars via interactive inquiry**:
    - **Host Runtime & Interface**: Is it a custom node library (e.g. Griptape, ComfyUI, Nuke), a web app, a desktop GUI, or a CLI?
    - **Cleanup Scope**: Are we preserving `.git`, model checkpoints, and virtual environments, or wiping code only?
    - **Core Mathematical/Algorithmic Direction**: What specific algorithms, libraries, or methodologies are desired?
-3. **Preserve High-Value Artifacts**: Always keep model checkpoints (`checkpoints/`), virtual environments (`.venv/`), and VCS history (`.git`).
+3. **Preserve High-Value Artifacts**: Always keep model checkpoints (`checkpoints/`, `models/`), virtual environments (`.venv/`), research documentation (`docs/`), and VCS history (`.git`).
 
 ---
 
@@ -121,24 +122,37 @@ Do not rely on opening heavy desktop applications or manual clicking to verify f
 
 ---
 
-### Phase 4: Host Environment Discovery & Safe Synchronization
+### Phase 4: Host Environment Discovery, Relative Paths & Model Sync
 
-Host applications often maintain their own configuration stores and separate library directories.
+Host applications often maintain their own configuration stores, relative workspaces, and separate model caches.
 
-1. **Locate Host Configuration**:
-   - Scan standard application data directories (`%APPDATA%`, `~/.config`, etc.) for configuration JSONs.
-   - Inspect library registration lists, active workspace directories, and IPC settings.
-2. **Inspect Host Python & Virtualenv**:
-   - Identify the host's Python bundle and package manager (e.g., `uv`, embedded Python).
-   - Check the target library's `.venv` without polluting or destroying existing dependencies.
-3. **Non-Destructive Sync**:
-   - Remove only deprecated source code files.
-   - Strictly preserve `.venv/`, `checkpoints/`, and user caches in the host directory.
-   - Copy new `core/`, `nodes/`, `tests/`, and manifest files.
-4. **In-Host Validation**:
-   - Execute the test suite directly using the host virtual environment:
-     `& "<host_venv>/python.exe" -m pytest tests/`
-   - Test importing all node classes inside the host Python to guarantee zero startup crashes.
+#### 1. Relative-Path First Architecture
+- **Never hardcode absolute paths**: Always use workspace-relative paths (`libraries/<name>`, `models/<name>`).
+- Dynamically detect workspace root by ascending from the library root directory:
+  ```python
+  lib_root = Path(__file__).resolve().parent.parent
+  workspace_root = lib_root.parent.parent if lib_root.parent.name == "libraries" else lib_root.parent
+  ```
+- Register relative paths in host configs (e.g. `griptape_nodes_config.json`).
+
+#### 2. Model Management & Cache Synchronization
+- When integrating AI models (e.g., ViTMatte, SAM 2):
+  1. Check workspace-relative `models/` directory first.
+  2. Check Hugging Face hub cache via `scan_cache_dir()` or default snapshot directories.
+  3. Trigger host native ModelManager or CLI download if missing.
+  4. Write completion status files (`~/.local/share/.../model_downloads/*.json`) so the host desktop UI immediately recognizes the models as installed.
+
+#### 3. PEP 668 & Bundled Python Package Installation
+- Host runtimes (like Griptape Desktop) often bundle an isolated Python managed by `uv` or marked as externally managed.
+- When installing supplementary packages (e.g. Meta SAM 2 from GitHub) into the host environment, invoke the host Python directly with `--break-system-packages`:
+  ```powershell
+  & "<host_python_path>" -m pip install --break-system-packages git+https://github.com/facebookresearch/sam2.git
+  ```
+
+#### 4. Resilient Fallbacks for Heavy AI Modules
+- If an optional AI module (like SAM 2 or specialized CUDA kernels) is not yet installed or compiled:
+  - Do NOT crash the pipeline.
+  - Automatically log an informational notice and fall back to a high-speed algorithmic equivalent (e.g., Adaptive ViT/Contour tracker or Guided Filter).
 
 ---
 
@@ -147,7 +161,7 @@ Host applications often maintain their own configuration stores and separate lib
 When iterating based on user review, apply these optimization patterns:
 
 #### 1. Aggressive Feature Pruning
-- If a secondary process (e.g. RGB color post-processing) is irrelevant to the core output (e.g. alpha mask generation), remove it.
+- If a secondary process is irrelevant to the core output, remove it.
 - Eliminating unnecessary operations saves VRAM, compute time, and simplifies UI parameter clutter.
 
 #### 2. Topological Hole-Filling & Pure Value Locking
@@ -179,9 +193,9 @@ When iterating based on user review, apply these optimization patterns:
 Maintain an unbroken record of verified progress:
 1. **Atomic Commits**: Stage all relevant modifications, write clear semantic commit messages, and push to remote immediately after milestone verification.
 2. **Documentation Clarity**:
-   - Provide a visual ASCII/Mermaid pipeline diagram.
+   - Provide visual pipeline diagrams.
    - Structure documentation into "Quick All-in-One Course" and "Modular Pipeline Course".
-   - Include copy-pasteable host registration JSON snippets.
+   - Include relative-path host registration JSON snippets and standalone download commands.
 
 ---
 
@@ -190,9 +204,9 @@ Maintain an unbroken record of verified progress:
 Before declaring a tool development cycle complete, verify:
 - [ ] Core algorithms run independently of any host app imports.
 - [ ] Compatibility shim allows headless node/adapter testing.
-- [ ] Unit tests cover core mathematical functions with synthetic data.
-- [ ] Host configuration points to the correct library manifest path.
-- [ ] Virtual environment dependencies are synchronized via the host's package manager.
+- [ ] Unit tests cover core mathematical functions with synthetic data (100% pass).
+- [ ] Host configuration uses workspace-relative paths (`libraries/...`, `models/...`).
+- [ ] Model weights are resolved from relative folders, local caches, or auto-downloaded via host model management.
 - [ ] All node classes import successfully in the host's Python runtime.
 - [ ] Extreme boundary values are strictly locked (no float noise or internal jitter).
 - [ ] Git working tree is clean and changes are pushed to remote.
