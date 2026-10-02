@@ -98,14 +98,18 @@ pip install -r requirements.txt
 pip install git+https://github.com/facebookresearch/sam2.git
 ```
 
-### 2. 필수 모델 다운로드 및 Hugging Face / Griptape 동기화
+### 2. Griptape Model Management 자동 다운로드 (전자동)
 
-라이브러리 등록 시 Griptape Nodes Desktop에서 모델을 자동으로 감지하고 다운로드하도록 매니페스트(`griptape_nodes_library.json`)에 모델 카탈로그가 등록되어 있습니다.
+본 라이브러리는 **Griptape Nodes Desktop의 네이티브 Model Management 시스템(`ModelManager`)과 완벽히 연동**되어 있습니다.
 
-Hugging Face를 처음 사용하는 환경이라도 캐시 디렉터리가 자동 생성되므로 사전에 설정을 구성할 필요가 없습니다. 터미널에서 필요한 모든 모델(`ViTMatte`, `SAM 2.1`)을 즉시 다운로드하고 Griptape Model Manager와 동기화하려면 다음 명령어를 실행합니다:
+다른 PC나 새로운 로컬 환경에 라이브러리를 설치하더라도 별도의 수동 다운로드 작업 없이 다음과 같이 동작합니다:
+- **자동 초기화**: Griptape에 노드가 로드되는 즉시 `griptape_nodes_config.json`의 `models_to_download`에 필수 모델이 자동 등록됩니다.
+- **실행 시 자동 다운로드**: 노드가 최초 실행될 때 모델이 없으면 Griptape의 `ModelManager`가 네이티브 백그라운드 다운로드를 자동으로 수행하며, Griptape Desktop UI의 **Model Manager** 창에도 다운로드 진행 상태가 실시간 반영됩니다.
+
+*(선택사항) 터미널에서 사전에 일괄 다운로드하거나 Hugging Face 토큰을 연동하려면 아래 명령어를 사용할 수 있습니다:*
 
 ```bash
-# 기본 다운로드 및 Griptape Nodes Desktop 자동 연동
+# Griptape Model Management 시스템을 통해 즉시 일괄 다운로드
 python scripts/download_models.py
 
 # Hugging Face 계정 로그인 및 토큰 연동 (Rate Limit 해제 및 Griptape Desktop secrets 자동 등록)
@@ -122,7 +126,7 @@ python scripts/download_models.py --verify-only
 
 ### 3. Griptape Nodes Desktop 등록
 
-`%APPDATA%\Griptape Nodes\xdg_config_home\griptape_nodes\griptape_nodes_config.json` 파일의 `libraries_to_register` 목록에 해당 라이브러리의 매니페스트 경로를 추가합니다 (또한 `models_to_download`에 모델들이 자동 등록되어 Griptape 초기화 시 자동 관리됩니다):
+`%APPDATA%\Griptape Nodes\xdg_config_home\griptape_nodes\griptape_nodes_config.json` 파일의 `libraries_to_register` 목록에 해당 라이브러리의 매니페스트 경로를 워크스페이스 상대경로로 등록합니다:
 
 ```json
 "libraries_to_register": [
@@ -138,7 +142,7 @@ python scripts/download_models.py --verify-only
 
 1. Griptape Nodes Desktop 실행
 2. 좌측 하단의 **Refresh Libraries** 버튼 클릭 (또는 Engine Restart)
-3. 노드 라이브러리 목록에 **`VFX Keying & ViT Masking`** 카테고리가 나타나며 모델이 즉시 연동됩니다.
+3. 노드 라이브러리 목록에 **`VFX Keying & ViT Masking`** 카테고리가 나타나며, 모델이 Griptape Model Manager를 통해 즉시 자동 연동됩니다.
 
 ---
 

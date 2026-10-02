@@ -438,20 +438,22 @@ class ViTEngine:
             self._vitmatte_model.eval()
         except Exception as e:
             try:
-                from huggingface_hub import snapshot_download
+                from core.griptape_model_manager import download_model_via_griptape
 
-                logger.info("ViTMatte not found locally. Initiating auto-download for %s...", self.vitmatte_model_id)
-                snapshot_download(repo_id=self.vitmatte_model_id, resume_download=True)
-                self._vitmatte_processor = VitMatteImageProcessor.from_pretrained(self.vitmatte_model_id)
+                logger.info("[Griptape Model Manager] ViTMatte not found locally (%s). Downloading via Griptape Model Management: %s...", e, self.vitmatte_model_id)
+                success, dl_path = download_model_via_griptape(self.vitmatte_model_id)
+                load_target = dl_path if (success and dl_path) else self.vitmatte_model_id
+
+                self._vitmatte_processor = VitMatteImageProcessor.from_pretrained(load_target)
                 self._vitmatte_model = VitMatteForImageMatting.from_pretrained(
-                    self.vitmatte_model_id,
+                    load_target,
                     torch_dtype=torch.float32 if self.device == "cpu" else torch.float16,
                 ).to(self.device)
                 self._vitmatte_model.eval()
-                logger.info("ViTMatte model downloaded and loaded successfully.")
+                logger.info("[Griptape Model Manager] ViTMatte model downloaded and loaded successfully.")
                 return
             except Exception as dl_err:
-                logger.warning("Could not auto-download or load ViTMatte (%s / %s). Falling back to guided filter.", e, dl_err)
+                logger.warning("Could not download or load ViTMatte via Griptape Model Manager (%s / %s). Falling back to guided filter.", e, dl_err)
                 self._vitmatte_model = False
 
     def predict_vitmatte(
@@ -585,41 +587,31 @@ class ViTEngine:
                 logger.info("Auto-discovered local relative SAM 2 checkpoint: %s", p)
                 return str(p.resolve()), str(yaml_p.resolve()) if yaml_p.exists() else model_cfg
 
-        # 3. Try searching Hugging Face cache
+        # 3. Resolve via Griptape Model Management (auto-downloads if missing in another local environment)
         try:
-            from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+            from core.griptape_model_manager import resolve_model_weights_and_config
 
-            cache_dir_path = Path(HUGGINGFACE_HUB_CACHE)
-            if cache_dir_path.exists():
-                from huggingface_hub import scan_cache_dir
-
-                cache = scan_cache_dir()
-                for repo in cache.repos:
-                    if "sam2" in repo.repo_id:
-                        for snap in repo.snapshots:
-                            p_snap = Path(snap)
-                            pt_file = p_snap / "sam2.1_hiera_large.pt"
-                            cfg_file = p_snap / "sam2.1_hiera_l.yaml"
-                            if pt_file.exists():
-                                logger.info("Auto-discovered SAM 2 checkpoint from HF cache: %s", pt_file)
-                                return str(pt_file), str(cfg_file) if cfg_file.exists() else model_cfg
+            ckpt, cfg = resolve_model_weights_and_config("facebook/sam2.1-hiera-large")
+            if ckpt and Path(ckpt).exists():
+                logger.info("[Griptape Model Manager] Auto-discovered SAM 2 checkpoint via Griptape Model Management: %s", ckpt)
+                return ckpt, cfg if cfg else model_cfg
         except Exception as e:
-            logger.debug("Could not inspect HF cache for SAM 2: %s", e)
+            logger.debug("[Griptape Model Manager] Could not resolve SAM 2 via Griptape Model Management: %s", e)
 
         return checkpoint, model_cfg
 
     @classmethod
     def ensure_models_downloaded(cls) -> bool:
         """
-        Verify and ensure that ViTMatte and SAM 2 models are downloaded locally
-        and synchronized with Griptape Nodes Desktop.
+        Verify and ensure that ViTMatte and SAM 2 models are downloaded
+        and synchronized with Griptape Nodes Desktop Model Management.
         """
         try:
-            from scripts.download_models import main as dl_main
+            from core.griptape_model_manager import ensure_all_models_ready
 
-            return dl_main() == 0
+            return ensure_all_models_ready(auto_download=True)
         except Exception as ex:
-            logger.warning("Auto model download verification failed: %s", ex)
+            logger.warning("[Griptape Model Manager] Auto model download verification failed: %s", ex)
             return False
 
 

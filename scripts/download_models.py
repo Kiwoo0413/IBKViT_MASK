@@ -22,6 +22,10 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+lib_root = Path(__file__).resolve().parent.parent
+if str(lib_root) not in sys.path:
+    sys.path.insert(0, str(lib_root))
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("ModelDownloader")
 
@@ -282,37 +286,21 @@ def download_model(
     local_dir: Optional[Path] = None,
     token: Optional[str] = None,
 ) -> Tuple[bool, Optional[str]]:
-    """Download single model via huggingface_hub snapshot_download."""
+    """Download single model via Griptape Model Management system (with fallback)."""
     model_id = model_info["id"]
     name = model_info["name"]
     logger.info(">>> Preparing model: %s (%s)", name, model_id)
 
-    # Ensure cache directory exists before downloading
-    ensure_hf_cache_dir()
-
-    try:
-        from huggingface_hub import snapshot_download
-
-        kwargs = {
-            "repo_id": model_id,
-            "resume_download": True,
-            "force_download": force,
-        }
-        if token:
-            kwargs["token"] = token
-
-        if local_dir:
-            model_subfolder = local_dir / model_id.replace("/", "--")
-            model_subfolder.mkdir(parents=True, exist_ok=True)
-            kwargs["local_dir"] = str(model_subfolder)
-            logger.info("Downloading to relative local directory: %s", model_subfolder)
-
-        out_path = snapshot_download(**kwargs)
+    from core.griptape_model_manager import download_model_via_griptape
+    success, out_path = download_model_via_griptape(
+        model_id=model_id,
+        force=force,
+        local_dir=local_dir,
+    )
+    if success and out_path:
         logger.info("✓ Model '%s' successfully ready at: %s", name, out_path)
         return True, str(out_path)
-    except Exception as e:
-        logger.error("✗ Failed to download model '%s': %s", name, e)
-        return False, None
+    return False, None
 
 
 def main() -> int:
@@ -379,36 +367,12 @@ def main() -> int:
     for item in REQUIRED_MODELS:
         mid = item["id"]
         if args.verify_only:
-            # Check local relative models directory first
-            found_locally = False
-            for check_dir in [
-                lib_root / "models" / mid.replace("/", "--"),
-                lib_root / "models" / mid.split("/")[-1],
-                lib_root.parent.parent / "models" / mid.replace("/", "--"),
-                target_local_dir / mid.replace("/", "--") if target_local_dir else None,
-            ]:
-                if check_dir and check_dir.exists() and any(check_dir.iterdir()):
-                    logger.info("✓ Verified: %s is present in local relative directory: %s", mid, check_dir)
-                    found_locally = True
-                    break
-
-            if found_locally:
-                continue
-
-            try:
-                # Check HF cache
-                ensure_hf_cache_dir()
-                from huggingface_hub import scan_cache_dir
-
-                cache_info = scan_cache_dir()
-                cached_repos = [r.repo_id for r in cache_info.repos]
-                if mid in cached_repos:
-                    logger.info("✓ Verified: %s is present in Hugging Face cache", mid)
-                else:
-                    logger.warning("! Missing: %s is NOT in Hugging Face cache or local models dir", mid)
-                    all_success = False
-            except Exception as ex:
-                logger.warning("! Missing: %s not cached yet (cache scan note: %s)", mid, ex)
+            from core.griptape_model_manager import is_model_downloaded
+            ready, p = is_model_downloaded(mid)
+            if ready and p:
+                logger.info("✓ Verified: %s is present at: %s", mid, p)
+            else:
+                logger.warning("! Missing: %s is NOT present in local directory or Griptape/HF cache", mid)
                 all_success = False
             continue
 
