@@ -59,3 +59,5 @@ output/
 
 # Research & Private Documentation
 docs/keying_and_matting_research_comparison.md
+docs/paper_preparation_plan.md
+docs/*.md
