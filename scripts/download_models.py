@@ -67,7 +67,113 @@ def get_griptape_directories() -> Tuple[Optional[Path], Optional[Path]]:
     return config_dir, data_dir
 
 
-def register_in_griptape_config(model_ids: List[str], config_dir: Path) -> bool:
+def ensure_hf_cache_dir() -> Path:
+    """Ensure Hugging Face cache directory exists so scan_cache_dir doesn't raise CacheNotFound."""
+    try:
+        from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+        p = Path(HUGGINGFACE_HUB_CACHE)
+    except Exception:
+        p = Path.home() / ".cache" / "huggingface" / "hub"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def setup_huggingface_auth(
+    token: Optional[str] = None,
+    interactive: bool = False,
+    config_dir: Optional[Path] = None,
+) -> Optional[str]:
+    """
+    Handle Hugging Face authentication:
+    1. If user passed token via CLI argument (--token), use it.
+    2. If --login flag requested, prompt user interactively for HF token.
+    3. Check HF_TOKEN in environment variable or griptape_nodes_config.json.
+    4. Call huggingface_hub.login(token=...) to authenticate.
+    5. Save token in griptape_nodes_config.json (secrets_to_register.HF_TOKEN) for Griptape Desktop.
+    """
+    import huggingface_hub
+
+    resolved_token = token.strip() if token else None
+
+    # Check Griptape config for HF_TOKEN if not provided
+    if not resolved_token and config_dir:
+        cfg_file = config_dir / "griptape_nodes_config.json"
+        if cfg_file.exists():
+            try:
+                with open(cfg_file, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                secrets = cfg.get("app_events", {}).get("on_app_initialization_complete", {}).get("secrets_to_register", {})
+                cfg_token = secrets.get("HF_TOKEN", "").strip()
+                if cfg_token:
+                    resolved_token = cfg_token
+            except Exception:
+                pass
+
+    # Check environment variable
+    if not resolved_token:
+        env_token = os.environ.get("HF_TOKEN", "").strip()
+        if env_token:
+            resolved_token = env_token
+
+    # Interactive prompt if --login was requested
+    if interactive:
+        print("\n" + "=" * 62)
+        print(" 🤗 Hugging Face Authentication & Token Setup")
+        print("=" * 62)
+        print("Hugging Face User Access Token(토큰)을 연결합니다.")
+        print("토큰이 없는 경우 웹브라우저에서 무료로 생성할 수 있습니다:")
+        print(" 👉 https://huggingface.co/settings/tokens (Role: Read 권장)\n")
+
+        try:
+            import getpass
+            user_input = getpass.getpass("Hugging Face Token 입력 (hf_..., 엔터 시 기존/익명 유지): ").strip()
+            if user_input:
+                resolved_token = user_input
+        except Exception:
+            try:
+                user_input = input("Hugging Face Token 입력 (hf_..., 엔터 시 기존/익명 유지): ").strip()
+                if user_input:
+                    resolved_token = user_input
+            except Exception:
+                pass
+
+    # Perform login if token is available
+    if resolved_token:
+        try:
+            huggingface_hub.login(token=resolved_token, add_to_git_credential=False)
+            logger.info("✓ Hugging Face authentication successful (Token: %s...%s)", resolved_token[:4], resolved_token[-4:])
+
+            # Save into Griptape config secrets
+            if config_dir:
+                cfg_file = config_dir / "griptape_nodes_config.json"
+                if cfg_file.exists():
+                    try:
+                        with open(cfg_file, "r", encoding="utf-8") as f:
+                            cfg = json.load(f)
+                        secrets = cfg.setdefault("app_events", {}).setdefault("on_app_initialization_complete", {}).setdefault("secrets_to_register", {})
+                        secrets["HF_TOKEN"] = resolved_token
+                        with open(cfg_file, "w", encoding="utf-8") as f:
+                            json.dump(cfg, f, indent=2)
+                        logger.info("✓ HF_TOKEN registered in Griptape Desktop secrets_to_register.")
+                    except Exception as e:
+                        logger.warning("Could not persist HF_TOKEN to griptape config: %s", e)
+        except Exception as e:
+            logger.warning("Hugging Face login attempt failed: %s", e)
+    else:
+        existing = huggingface_hub.get_token()
+        if existing:
+            logger.info("✓ Found existing cached Hugging Face token.")
+        else:
+            logger.info("ℹ️ Hugging Face 익명(Anonymous) 모드로 진행합니다. (토큰 등록 필요 시 --login 또는 --token <토큰> 옵션 사용)")
+
+    return resolved_token
+
+
+def register_in_griptape_config(
+    model_ids: List[str],
+    config_dir: Path,
+    hf_token: Optional[str] = None,
+) -> bool:
     """
     Register library manifest and model IDs in griptape_nodes_config.json.
     Ensures ALL library paths are stored as WORKSPACE-RELATIVE paths to prevent
@@ -121,6 +227,11 @@ def register_in_griptape_config(model_ids: List[str], config_dir: Path) -> bool:
             if mid not in models_list:
                 models_list.append(mid)
 
+        # 4. Save HF_TOKEN if available
+        if hf_token:
+            secrets = app_events.setdefault("secrets_to_register", {})
+            secrets["HF_TOKEN"] = hf_token
+
         with open(config_file, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
         logger.info("Successfully registered relative library (%s) and models in: %s", rel_lib_path, config_file)
@@ -169,11 +280,15 @@ def download_model(
     model_info: Dict[str, str],
     force: bool = False,
     local_dir: Optional[Path] = None,
+    token: Optional[str] = None,
 ) -> Tuple[bool, Optional[str]]:
     """Download single model via huggingface_hub snapshot_download."""
     model_id = model_info["id"]
     name = model_info["name"]
     logger.info(">>> Preparing model: %s (%s)", name, model_id)
+
+    # Ensure cache directory exists before downloading
+    ensure_hf_cache_dir()
 
     try:
         from huggingface_hub import snapshot_download
@@ -183,6 +298,9 @@ def download_model(
             "resume_download": True,
             "force_download": force,
         }
+        if token:
+            kwargs["token"] = token
+
         if local_dir:
             model_subfolder = local_dir / model_id.replace("/", "--")
             model_subfolder.mkdir(parents=True, exist_ok=True)
@@ -204,6 +322,17 @@ def main() -> int:
     parser.add_argument("--force", action="store_true", help="Force re-download even if cached")
     parser.add_argument("--verify-only", action="store_true", help="Only verify model existence without downloading")
     parser.add_argument(
+        "--login",
+        action="store_true",
+        help="Interactive Hugging Face login (enter your Hugging Face user access token)",
+    )
+    parser.add_argument(
+        "--token",
+        type=str,
+        default=None,
+        help="Hugging Face User Access Token (e.g. hf_...)",
+    )
+    parser.add_argument(
         "--local",
         action="store_true",
         help="Download models directly into relative ./models directory inside the library repository",
@@ -221,6 +350,16 @@ def main() -> int:
         logger.info("Found Griptape Nodes Desktop config at: %s", config_dir)
     if data_dir:
         logger.info("Found Griptape Nodes Desktop data dir at: %s", data_dir)
+
+    # 1. Ensure HF cache directory exists (prevents CacheNotFound for first-time HF users)
+    ensure_hf_cache_dir()
+
+    # 2. Setup Hugging Face authentication if requested or available
+    hf_token = setup_huggingface_auth(
+        token=args.token,
+        interactive=args.login,
+        config_dir=config_dir,
+    )
 
     # Determine local models directory if requested
     target_local_dir: Optional[Path] = None
@@ -258,6 +397,7 @@ def main() -> int:
 
             try:
                 # Check HF cache
+                ensure_hf_cache_dir()
                 from huggingface_hub import scan_cache_dir
 
                 cache_info = scan_cache_dir()
@@ -268,11 +408,16 @@ def main() -> int:
                     logger.warning("! Missing: %s is NOT in Hugging Face cache or local models dir", mid)
                     all_success = False
             except Exception as ex:
-                logger.warning("Verification error for %s: %s", mid, ex)
+                logger.warning("! Missing: %s not cached yet (cache scan note: %s)", mid, ex)
                 all_success = False
             continue
 
-        success, local_path_str = download_model(item, force=args.force, local_dir=target_local_dir)
+        success, local_path_str = download_model(
+            item,
+            force=args.force,
+            local_dir=target_local_dir,
+            token=hf_token,
+        )
         if success and local_path_str:
             downloaded_ids.append(mid)
             if data_dir:
@@ -280,10 +425,10 @@ def main() -> int:
         else:
             all_success = False
 
-    # Sync Griptape config with relative paths
+    # Sync Griptape config with relative paths and HF token
     if config_dir:
         ids_to_sync = downloaded_ids if downloaded_ids else [m["id"] for m in REQUIRED_MODELS]
-        register_in_griptape_config(ids_to_sync, config_dir)
+        register_in_griptape_config(ids_to_sync, config_dir, hf_token=hf_token)
 
     if all_success:
         logger.info("🎉 All required models for VFX IBK & ViT Masking are ready and synchronized with Griptape!")

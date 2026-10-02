@@ -587,18 +587,22 @@ class ViTEngine:
 
         # 3. Try searching Hugging Face cache
         try:
-            from huggingface_hub import scan_cache_dir
+            from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 
-            cache = scan_cache_dir()
-            for repo in cache.repos:
-                if "sam2" in repo.repo_id:
-                    for snap in repo.snapshots:
-                        p_snap = Path(snap)
-                        pt_file = p_snap / "sam2.1_hiera_large.pt"
-                        cfg_file = p_snap / "sam2.1_hiera_l.yaml"
-                        if pt_file.exists():
-                            logger.info("Auto-discovered SAM 2 checkpoint from HF cache: %s", pt_file)
-                            return str(pt_file), str(cfg_file) if cfg_file.exists() else model_cfg
+            cache_dir_path = Path(HUGGINGFACE_HUB_CACHE)
+            if cache_dir_path.exists():
+                from huggingface_hub import scan_cache_dir
+
+                cache = scan_cache_dir()
+                for repo in cache.repos:
+                    if "sam2" in repo.repo_id:
+                        for snap in repo.snapshots:
+                            p_snap = Path(snap)
+                            pt_file = p_snap / "sam2.1_hiera_large.pt"
+                            cfg_file = p_snap / "sam2.1_hiera_l.yaml"
+                            if pt_file.exists():
+                                logger.info("Auto-discovered SAM 2 checkpoint from HF cache: %s", pt_file)
+                                return str(pt_file), str(cfg_file) if cfg_file.exists() else model_cfg
         except Exception as e:
             logger.debug("Could not inspect HF cache for SAM 2: %s", e)
 

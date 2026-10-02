@@ -98,18 +98,25 @@ pip install -r requirements.txt
 pip install git+https://github.com/facebookresearch/sam2.git
 ```
 
-### 2. 필수 모델 다운로드 및 Griptape 동기화
+### 2. 필수 모델 다운로드 및 Hugging Face / Griptape 동기화
 
 라이브러리 등록 시 Griptape Nodes Desktop에서 모델을 자동으로 감지하고 다운로드하도록 매니페스트(`griptape_nodes_library.json`)에 모델 카탈로그가 등록되어 있습니다.
 
-터미널에서 원클릭으로 필요한 모든 모델(`ViTMatte`, `SAM 2.1`)을 즉시 다운로드하고 Griptape Model Manager와 동기화하려면 다음 명령어를 실행합니다:
+Hugging Face를 처음 사용하는 환경이라도 캐시 디렉터리가 자동 생성되므로 사전에 설정을 구성할 필요가 없습니다. 터미널에서 필요한 모든 모델(`ViTMatte`, `SAM 2.1`)을 즉시 다운로드하고 Griptape Model Manager와 동기화하려면 다음 명령어를 실행합니다:
 
 ```bash
+# 기본 다운로드 및 Griptape Nodes Desktop 자동 연동
 python scripts/download_models.py
-```
 
-*설치/다운로드 상태만 빠르게 검증할 때:*
-```bash
+# Hugging Face 계정 로그인 및 토큰 연동 (Rate Limit 해제 및 Griptape Desktop secrets 자동 등록)
+python scripts/download_models.py --login
+# 또는 토큰 직접 전달:
+python scripts/download_models.py --token "hf_YourHFTrainingOrReadToken"
+
+# 저장소 내 로컬 상대경로(./models/)에 모델을 직접 내려받을 때
+python scripts/download_models.py --local
+
+# 설치/다운로드 상태만 빠르게 검증할 때
 python scripts/download_models.py --verify-only
 ```
 
