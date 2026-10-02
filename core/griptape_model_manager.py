@@ -176,6 +176,30 @@ def sync_griptape_config_models() -> bool:
         return False
 
 
+def mark_model_download_completed(model_id: str) -> None:
+    """Write Griptape ModelManager status file so Desktop UI immediately recognizes completion."""
+    try:
+        user_home = Path.home()
+        status_dir = user_home / ".local" / "share" / "griptape_nodes" / "model_downloads"
+        status_dir.mkdir(parents=True, exist_ok=True)
+        safe_name = model_id.replace("/", "--").replace(".", "--") + ".json"
+        status_file = status_dir / safe_name
+        now_iso = datetime.now(timezone.utc).isoformat()
+        status_data = {
+            "model_id": model_id,
+            "status": "completed",
+            "started_at": now_iso,
+            "updated_at": now_iso,
+            "completed_at": now_iso,
+            "progress_percent": 100.0,
+            "completed": True,
+        }
+        with open(status_file, "w", encoding="utf-8") as f:
+            json.dump(status_data, f, indent=2)
+    except Exception as e:
+        logger.debug("Failed marking model download completed: %s", e)
+
+
 def is_model_downloaded(model_id: str) -> Tuple[bool, Optional[Path]]:
     """
     Check if a model is downloaded and ready in:
@@ -207,6 +231,7 @@ def is_model_downloaded(model_id: str) -> Tuple[bool, Optional[Path]]:
         for sub in subfolder_names:
             candidate = parent_dir / sub
             if candidate.exists() and any(candidate.iterdir()):
+                mark_model_download_completed(model_id)
                 return True, candidate
 
     # Search Hugging Face cache
@@ -221,6 +246,7 @@ def is_model_downloaded(model_id: str) -> Tuple[bool, Optional[Path]]:
                     for rev in repo.revisions:
                         p_snap = Path(rev.snapshot_path)
                         if p_snap.exists() and any(p_snap.iterdir()):
+                            mark_model_download_completed(model_id)
                             return True, p_snap
     except Exception:
         pass
@@ -231,6 +257,7 @@ def is_model_downloaded(model_id: str) -> Tuple[bool, Optional[Path]]:
     if direct_hub_sub.exists():
         for snap in direct_hub_sub.iterdir():
             if snap.is_dir() and any(snap.iterdir()):
+                mark_model_download_completed(model_id)
                 return True, snap
 
     return False, None
@@ -255,6 +282,7 @@ def download_model_via_griptape(
         ready, path = is_model_downloaded(model_id)
         if ready and path:
             logger.info("[Griptape Model Manager] Model '%s' is ready at: %s", model_id, path)
+            mark_model_download_completed(model_id)
             return True, str(path)
 
     # Determine relative download directory if requested
@@ -272,22 +300,7 @@ def download_model_via_griptape(
         target_str = str(local_dir_path) if local_dir_path else None
         downloaded_path = mm.download_model(model_id=model_id, local_dir=target_str)
 
-        try:
-            status_file = mm._get_status_file_path(model_id)
-            now_iso = datetime.now(timezone.utc).isoformat()
-            final_data = {
-                "model_id": model_id,
-                "status": "completed",
-                "started_at": now_iso,
-                "updated_at": now_iso,
-                "completed_at": now_iso,
-                "progress_percent": 100.0,
-                "completed": True,
-            }
-            mm._write_download_status(status_file, final_data)
-        except Exception:
-            pass
-
+        mark_model_download_completed(model_id)
         logger.info("[Griptape Model Manager] ✓ Successfully downloaded '%s' to: %s", model_id, downloaded_path)
         return True, str(downloaded_path)
     except Exception as ex_direct:
@@ -305,6 +318,7 @@ def download_model_via_griptape(
             if res.returncode == 0:
                 ready, path = is_model_downloaded(model_id)
                 if ready and path:
+                    mark_model_download_completed(model_id)
                     logger.info("[Griptape Model Manager] ✓ Griptape CLI successfully downloaded '%s' to: %s", model_id, path)
                     return True, str(path)
             else:
@@ -325,6 +339,7 @@ def download_model_via_griptape(
             kwargs["local_dir"] = str(local_dir_path)
 
         out_path = snapshot_download(**kwargs)
+        mark_model_download_completed(model_id)
         logger.info("[Griptape Model Manager] ✓ Downloaded '%s' via fallback snapshot_download: %s", model_id, out_path)
         return True, str(out_path)
     except Exception as e:
