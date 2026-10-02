@@ -119,7 +119,7 @@ python scripts/download_models.py --verify-only
 
 ```json
 "libraries_to_register": [
-  "D:\\AI\\GripTape\\libraries\\IBKViT_MASK\\griptape_nodes_library.json"
+  "libraries/IBKViT_MASK/griptape_nodes_library.json"
 ],
 "models_to_download": [
   "hustvl/vitmatte-small-composition-1k",

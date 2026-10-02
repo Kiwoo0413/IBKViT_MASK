@@ -67,8 +67,12 @@ def get_griptape_directories() -> Tuple[Optional[Path], Optional[Path]]:
     return config_dir, data_dir
 
 
-def register_models_in_griptape_config(model_ids: List[str], config_dir: Path) -> bool:
-    """Add model IDs to griptape_nodes_config.json under models_to_download."""
+def register_in_griptape_config(model_ids: List[str], config_dir: Path) -> bool:
+    """
+    Register library manifest and model IDs in griptape_nodes_config.json.
+    Ensures ALL library paths are stored as WORKSPACE-RELATIVE paths to prevent
+    drive letter and absolute path download errors across environments.
+    """
     config_file = config_dir / "griptape_nodes_config.json"
     if not config_file.exists():
         return False
@@ -78,18 +82,48 @@ def register_models_in_griptape_config(model_ids: List[str], config_dir: Path) -
             cfg = json.load(f)
 
         app_events = cfg.setdefault("app_events", {}).setdefault("on_app_initialization_complete", {})
-        models_list = app_events.setdefault("models_to_download", [])
 
-        updated = False
+        # 1. Resolve relative path for this library's manifest
+        lib_root = Path(__file__).resolve().parent.parent
+        manifest_file = lib_root / "griptape_nodes_library.json"
+
+        ws_dir_str = cfg.get("workspace_directory")
+        if ws_dir_str:
+            ws_dir = Path(ws_dir_str).resolve()
+            try:
+                rel_lib_path = manifest_file.relative_to(ws_dir).as_posix()
+            except ValueError:
+                rel_lib_path = f"libraries/{lib_root.name}/griptape_nodes_library.json"
+        else:
+            rel_lib_path = f"libraries/{lib_root.name}/griptape_nodes_library.json"
+
+        # 2. Sanitize and register libraries_to_register (under app_events and top-level if present)
+        for target_dict in [app_events, cfg]:
+            if "libraries_to_register" in target_dict or target_dict is app_events:
+                lib_list = target_dict.setdefault("libraries_to_register", [])
+                cleaned_list: List[str] = []
+                replaced = False
+                for item in lib_list:
+                    p_str = str(item).replace("\\", "/")
+                    if "IBKViT_MASK" in p_str:
+                        if not replaced:
+                            cleaned_list.append(rel_lib_path)
+                            replaced = True
+                    else:
+                        cleaned_list.append(item)
+                if not replaced:
+                    cleaned_list.append(rel_lib_path)
+                target_dict["libraries_to_register"] = cleaned_list
+
+        # 3. Register models_to_download
+        models_list = app_events.setdefault("models_to_download", [])
         for mid in model_ids:
             if mid not in models_list:
                 models_list.append(mid)
-                updated = True
 
-        if updated:
-            with open(config_file, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2)
-            logger.info("Successfully registered models in Griptape config: %s", config_file)
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+        logger.info("Successfully registered relative library (%s) and models in: %s", rel_lib_path, config_file)
         return True
     except Exception as e:
         logger.warning("Could not update griptape_nodes_config.json: %s", e)
@@ -131,7 +165,11 @@ def register_griptape_status(model_id: str, local_path: Path, data_dir: Path) ->
         return False
 
 
-def download_model(model_info: Dict[str, str], force: bool = False) -> Tuple[bool, Optional[str]]:
+def download_model(
+    model_info: Dict[str, str],
+    force: bool = False,
+    local_dir: Optional[Path] = None,
+) -> Tuple[bool, Optional[str]]:
     """Download single model via huggingface_hub snapshot_download."""
     model_id = model_info["id"]
     name = model_info["name"]
@@ -140,13 +178,20 @@ def download_model(model_info: Dict[str, str], force: bool = False) -> Tuple[boo
     try:
         from huggingface_hub import snapshot_download
 
-        local_dir = snapshot_download(
-            repo_id=model_id,
-            resume_download=True,
-            force_download=force,
-        )
-        logger.info("✓ Model '%s' successfully ready at: %s", name, local_dir)
-        return True, local_dir
+        kwargs = {
+            "repo_id": model_id,
+            "resume_download": True,
+            "force_download": force,
+        }
+        if local_dir:
+            model_subfolder = local_dir / model_id.replace("/", "--")
+            model_subfolder.mkdir(parents=True, exist_ok=True)
+            kwargs["local_dir"] = str(model_subfolder)
+            logger.info("Downloading to relative local directory: %s", model_subfolder)
+
+        out_path = snapshot_download(**kwargs)
+        logger.info("✓ Model '%s' successfully ready at: %s", name, out_path)
+        return True, str(out_path)
     except Exception as e:
         logger.error("✗ Failed to download model '%s': %s", name, e)
         return False, None
@@ -158,6 +203,17 @@ def main() -> int:
     )
     parser.add_argument("--force", action="store_true", help="Force re-download even if cached")
     parser.add_argument("--verify-only", action="store_true", help="Only verify model existence without downloading")
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Download models directly into relative ./models directory inside the library repository",
+    )
+    parser.add_argument(
+        "--models-dir",
+        type=str,
+        default=None,
+        help="Custom relative or absolute directory path to download/check models",
+    )
     args = parser.parse_args()
 
     config_dir, data_dir = get_griptape_directories()
@@ -166,39 +222,68 @@ def main() -> int:
     if data_dir:
         logger.info("Found Griptape Nodes Desktop data dir at: %s", data_dir)
 
+    # Determine local models directory if requested
+    target_local_dir: Optional[Path] = None
+    lib_root = Path(__file__).resolve().parent.parent
+    if args.local:
+        target_local_dir = lib_root / "models"
+    elif args.models_dir:
+        p_arg = Path(args.models_dir)
+        target_local_dir = p_arg if p_arg.is_absolute() else (lib_root / p_arg).resolve()
+
+    if target_local_dir:
+        logger.info("Using relative/local model target: %s", target_local_dir)
+
     all_success = True
     downloaded_ids: List[str] = []
 
     for item in REQUIRED_MODELS:
         mid = item["id"]
         if args.verify_only:
+            # Check local relative models directory first
+            found_locally = False
+            for check_dir in [
+                lib_root / "models" / mid.replace("/", "--"),
+                lib_root / "models" / mid.split("/")[-1],
+                lib_root.parent.parent / "models" / mid.replace("/", "--"),
+                target_local_dir / mid.replace("/", "--") if target_local_dir else None,
+            ]:
+                if check_dir and check_dir.exists() and any(check_dir.iterdir()):
+                    logger.info("✓ Verified: %s is present in local relative directory: %s", mid, check_dir)
+                    found_locally = True
+                    break
+
+            if found_locally:
+                continue
+
             try:
-                from huggingface_hub import try_to_load_from_cache
-                # Check repo existence in cache
+                # Check HF cache
                 from huggingface_hub import scan_cache_dir
+
                 cache_info = scan_cache_dir()
                 cached_repos = [r.repo_id for r in cache_info.repos]
                 if mid in cached_repos:
                     logger.info("✓ Verified: %s is present in Hugging Face cache", mid)
                 else:
-                    logger.warning("! Missing: %s is NOT in Hugging Face cache", mid)
+                    logger.warning("! Missing: %s is NOT in Hugging Face cache or local models dir", mid)
                     all_success = False
             except Exception as ex:
                 logger.warning("Verification error for %s: %s", mid, ex)
                 all_success = False
             continue
 
-        success, local_dir = download_model(item, force=args.force)
-        if success and local_dir:
+        success, local_path_str = download_model(item, force=args.force, local_dir=target_local_dir)
+        if success and local_path_str:
             downloaded_ids.append(mid)
             if data_dir:
-                register_griptape_status(mid, Path(local_dir), data_dir)
+                register_griptape_status(mid, Path(local_path_str), data_dir)
         else:
             all_success = False
 
-    # Sync Griptape config
-    if config_dir and downloaded_ids:
-        register_models_in_griptape_config(downloaded_ids, config_dir)
+    # Sync Griptape config with relative paths
+    if config_dir:
+        ids_to_sync = downloaded_ids if downloaded_ids else [m["id"] for m in REQUIRED_MODELS]
+        register_in_griptape_config(ids_to_sync, config_dir)
 
     if all_success:
         logger.info("🎉 All required models for VFX IBK & ViT Masking are ready and synchronized with Griptape!")

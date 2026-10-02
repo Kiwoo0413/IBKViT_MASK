@@ -396,13 +396,43 @@ class ViTEngine:
         if self._vitmatte_model is not None:
             return
 
+        # Check local relative models/ directory inside library, workspace, or cwd first
+        lib_root = Path(__file__).resolve().parent.parent
+        workspace_root = lib_root.parent.parent
+
+        target_model = self.vitmatte_model_id
+
+        # If vitmatte_model_id was specified as a relative path to a local directory:
+        p_direct = Path(target_model)
+        if not p_direct.is_absolute():
+            for base in [Path.cwd(), lib_root, workspace_root]:
+                cand = (base / p_direct).resolve()
+                if cand.exists() and (cand / "config.json").exists():
+                    target_model = str(cand)
+                    break
+
+        if target_model == self.vitmatte_model_id:
+            possible_local_dirs = [
+                lib_root / "models" / "vitmatte-small-composition-1k",
+                lib_root / "models" / "hustvl--vitmatte-small-composition-1k",
+                lib_root / "models" / self.vitmatte_model_id.replace("/", "--"),
+                workspace_root / "models" / "vitmatte-small-composition-1k",
+                workspace_root / "models" / "hustvl--vitmatte-small-composition-1k",
+                Path("models") / "vitmatte-small-composition-1k",
+            ]
+            for p in possible_local_dirs:
+                if p.exists() and (p / "config.json").exists():
+                    target_model = str(p.resolve())
+                    logger.info("Found local relative ViTMatte model directory: %s", target_model)
+                    break
+
         try:
             from transformers import VitMatteForImageMatting, VitMatteImageProcessor
 
-            logger.info("Loading ViTMatte model: %s onto %s", self.vitmatte_model_id, self.device)
-            self._vitmatte_processor = VitMatteImageProcessor.from_pretrained(self.vitmatte_model_id)
+            logger.info("Loading ViTMatte model: %s onto %s", target_model, self.device)
+            self._vitmatte_processor = VitMatteImageProcessor.from_pretrained(target_model)
             self._vitmatte_model = VitMatteForImageMatting.from_pretrained(
-                self.vitmatte_model_id,
+                target_model,
                 torch_dtype=torch.float32 if self.device == "cpu" else torch.float16,
             ).to(self.device)
             self._vitmatte_model.eval()
@@ -512,13 +542,50 @@ class ViTEngine:
         model_cfg: Optional[str] = None,
     ) -> Tuple[Optional[str], Optional[str]]:
         """
-        Automatically locate SAM 2 checkpoint (.pt) and config (.yaml) in local Hugging Face cache
-        if not explicitly provided or found on disk.
+        Automatically locate SAM 2 checkpoint (.pt) and config (.yaml) in local relative models/
+        folder or local Hugging Face cache if not explicitly provided or found on disk.
+        All paths support workspace-relative and repository-relative resolution.
         """
-        if checkpoint and os.path.exists(checkpoint):
-            return checkpoint, model_cfg
+        lib_root = Path(__file__).resolve().parent.parent
+        workspace_root = lib_root.parent.parent
 
-        # Try searching Hugging Face cache
+        # 1. Check if checkpoint was explicitly passed (resolve if relative)
+        if checkpoint:
+            p_chk = Path(checkpoint)
+            if not p_chk.is_absolute():
+                for base in [Path.cwd(), lib_root, workspace_root]:
+                    cand = (base / p_chk).resolve()
+                    if cand.exists():
+                        p_chk = cand
+                        break
+            if p_chk.exists():
+                if model_cfg:
+                    p_cfg = Path(model_cfg)
+                    if not p_cfg.is_absolute():
+                        for base in [Path.cwd(), lib_root, workspace_root]:
+                            cand_cfg = (base / p_cfg).resolve()
+                            if cand_cfg.exists():
+                                model_cfg = str(cand_cfg)
+                                break
+                return str(p_chk), model_cfg
+
+        # 2. Check local relative models/ folder inside library and workspace
+        possible_local_sam2 = [
+            lib_root / "models" / "sam2.1_hiera_large.pt",
+            lib_root / "models" / "facebook--sam2.1-hiera-large" / "sam2.1_hiera_large.pt",
+            lib_root / "models" / "sam2.1-hiera-large" / "sam2.1_hiera_large.pt",
+            workspace_root / "models" / "sam2.1_hiera_large.pt",
+            workspace_root / "models" / "facebook--sam2.1-hiera-large" / "sam2.1_hiera_large.pt",
+            Path("models") / "sam2.1_hiera_large.pt",
+            Path("models") / "facebook--sam2.1-hiera-large" / "sam2.1_hiera_large.pt",
+        ]
+        for p in possible_local_sam2:
+            if p.exists():
+                yaml_p = p.parent / "sam2.1_hiera_l.yaml"
+                logger.info("Auto-discovered local relative SAM 2 checkpoint: %s", p)
+                return str(p.resolve()), str(yaml_p.resolve()) if yaml_p.exists() else model_cfg
+
+        # 3. Try searching Hugging Face cache
         try:
             from huggingface_hub import scan_cache_dir
 
