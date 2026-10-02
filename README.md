@@ -3,20 +3,8 @@
 > **VFX-grade Image Based Keying (IBK) & Vision Transformer (ViT) 4K Spatio-temporal Mask Extraction Custom Node Library for Griptape Nodes Desktop**  
 > **Version: `v2.3.0`** | **License: `Apache 2.0`** | **Tests: `33 / 33 Passed (100%)`**
 
-본 라이브러리는 영화/VFX 업계 표준 컴포지팅 기법인 **IBK(Image Based Keyer: Nuke IBKColour & IBKGizmo)**와 최신 딥러닝 **ViT(Vision Transformer: SAM 2 & ViTMatte)**를 융합하여, 머리카락 한 올, 모션 블러, 반투명 재질까지 완벽하게 추출하는 **4K UHD 비디오 알파 마스킹 전용 툴킷**입니다.
+본 라이브러리는 영화/VFX 업계 표준 컴포지팅 기법인 IBK(Image Based Keyer: Nuke IBKColour & IBKGizmo)와 최신 딥러닝 ViT(Vision Transformer: SAM 2 & ViTMatte)를 융합하여, 머리카락 한 올, 모션 블러, 반투명 재질까지 완벽하게 추출하는 **4K UHD 비디오 알파 마스킹 전용 툴킷**입니다.
 
----
-
-## 🚀 v2.3.0 최신 버전 주요 업데이트
-
-| 핵심 기능 | 내용 | 성능 및 품질 개선 |
-| :--- | :--- | :--- |
-| **⚡ 14배 초고속 ViT 가속 (Tight ROI Crop)** | 전체 4K/1080p 대신 서브픽셀 매팅이 필요한 Unknown 경계 Bounding Box만 타이트하게 Crop하여 ViT 추론 | 1080p 기준 ViT 추론 속도 **14배 향상 (21.5초 → 1.54초)**, 연산 면적 86.7% 절감 |
-| **🔍 국소 블러 & 디포커스 자동 감지** | 피사체 외곽선의 소벨(Sobel) 활성 그라디언트 기울기를 ~1.5ms 만에 분석하여 트라이맵 반경을 동적으로 스케일링 | 샤프한 에지는 좁게(연산 절약), 모션블러/디포커스 에지는 최대 1.8~2.0배 확장하여 부드러운 잔상 포섭 |
-| **🚫 프레임 간 마스크 누적(Ghosting) 완전 제거** | 무거운 Farneback Optical Flow 및 프레임 간 합집합(`np.maximum`)을 전면 배제하고 프레임별 완전 독립 추출 | 피사체 이동 시 잔상/누적 0%, 프레임당 약 1.7ms의 초고속 독립 추출 구현 |
-| **🔄 인풋 비디오 프레임 수 동적 자동 동기화** | `max_frames=0` 설정 시 영상 전체 길이를 자동 감지하며, Clean Plate, Core, Edge 마스크 시퀀스 프레임 수를 1:1 자동 정렬 | 모든 노드에 `frame_count` 출력 추가, 노드 간 프레임 수 불일치 에러 완전 차단 |
-| **📐 32배수 패딩 언패딩 슬라이싱 버그 수정** | ViTMatte 입출력 패딩(32배수) 시 발생하던 `cv2.resize` 왜곡을 `[:h, :w]` 슬라이싱 언패딩으로 교정 | 원본 해상도와 100% 일치하는 정밀 서브픽셀 마스크 출력 보장 |
-| **📁 클린 3계층 아키텍처 정립** | 루트에 산재하던 17개 중복 파일 정리 및 `core/`, `nodes/`, `tests/`, `examples/`로 단일화 | 유지보수성 및 외부 프레임워크와의 결합도(Decoupling) 최적화 |
 
 ---
 
