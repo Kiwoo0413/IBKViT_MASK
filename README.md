@@ -3,7 +3,7 @@
 > **VFX-grade Image Based Keying (IBK) & Vision Transformer (ViT) 4K Spatio-temporal Mask Extraction Custom Node Library for Griptape Nodes Desktop**  
 > **Version: `v2.3.0`** | **License: `Apache 2.0`** | **Tests: `33 / 33 Passed (100%)`**
 
-본 라이브러리는 영화/VFX 업계 표준 컴포지팅 기법인 **IBK(Image Based Keyer: Nuke IBKColour & IBKGizmo)**와 최신 딥러닝 **ViT(Vision Transformer: SAM 2 & ViTMatte)**를 융합하여, 머리카락 한 올, 모션 블러, 반투명 재질까지 완벽하게 추출하는 **4K UHD 비디오 알파 마스킹 전용 툴킷**입니다.
+본 라이브러리는 영화/VFX 업계 표준 컴포지팅 기법인 IBK(Image Based Keyer: Nuke IBKColour & IBKGizmo)와 최신 딥러닝 ViT(Vision Transformer: SAM 2 & ViTMatte)를 융합하여, 머리카락 한 올, 모션 블러, 반투명 재질까지 완벽하게 추출하는 **4K UHD 비디오 알파 마스킹 전용 툴킷**입니다.
 
 
 ---
