@@ -32,7 +32,34 @@
         "numpy>=1.24.0",
         "Pillow>=10.0.0"
       ]
-    }
+    },
+    "declarations": [
+      {
+        "type": "model_catalog",
+        "providers": {
+          "huggingface": {
+            "display_name": "Hugging Face",
+            "key_support": "NO_KEY_REQUIRED",
+            "models": {
+              "vitmatte_small": {
+                "display_name": "ViTMatte Small (Composition-1k)",
+                "provider_model_id": "hustvl/vitmatte-small-composition-1k",
+                "family": "ViTMatte",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Fast 4K boundary alpha matting Vision Transformer"
+              },
+              "sam2_hiera_large": {
+                "display_name": "SAM 2.1 Hiera Large",
+                "provider_model_id": "facebook/sam2.1-hiera-large",
+                "family": "SAM 2",
+                "key_support": "NO_KEY_REQUIRED",
+                "notes": "Video object tracking and coarse mask extraction"
+              }
+            }
+          }
+        }
+      }
+    ]
   },
   "categories": [
     {
@@ -52,7 +79,16 @@
         "category": "VFXMaskingKeying",
         "description": "Complete IBK Clean Plate, ViT Pure-White Core, Hair Keying, Polarity Auto-Correction, and Dual 4K UHD EXR/PNG Sequence Export (Stabilized + Raw)",
         "display_name": "VFX IBK & ViT Keyer (All-in-One)",
-        "icon": "sparkles"
+        "icon": "sparkles",
+        "declarations": [
+          {
+            "type": "model_usage",
+            "model_ids": [
+              "vitmatte_small",
+              "sam2_hiera_large"
+            ]
+          }
+        ]
       }
     },
     {
@@ -82,7 +118,16 @@
         "category": "VFXMaskingKeying",
         "description": "Node 03: Vision Transformer (SAM 2 & ViTMatte) object tracking, trimap, and sub-pixel matting",
         "display_name": "Node 03: ViT Mask Extractor",
-        "icon": "target"
+        "icon": "target",
+        "declarations": [
+          {
+            "type": "model_usage",
+            "model_ids": [
+              "vitmatte_small",
+              "sam2_hiera_large"
+            ]
+          }
+        ]
       }
     },
     {

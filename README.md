@@ -92,23 +92,45 @@ GPU 환경(CUDA)이 설정된 파이썬 환경에서 필수 패키지를 설치�
 pip install -r requirements.txt
 ```
 
-*(선택사항) SAM 2 최신 비디오 추적 엔진 활성화:*
+*(선택사항) Griptape 내장 Python에 SAM 2(facebook/sam2.1-hiera-large) 설치:*
 
-```bash
-pip install git+https://github.com/facebookresearch/sam2.git
+```powershell
+& "$env:LOCALAPPDATA\ai.griptape.nodes.desktop\current\resources\engine-bundle\python\python.exe" -m pip install --break-system-packages git+https://github.com/facebookresearch/sam2.git
 ```
 
-### 2. Griptape Nodes Desktop 등록
+### 2. AI 모델 다운로드 (상대 경로 & Griptape 연동)
 
-`%APPDATA%\Griptape Nodes\xdg_config_home\griptape_nodes\griptape_nodes_config.json` 파일의 `libraries_to_register` 목록에 해당 라이브러리의 매니페스트 경로를 추가합니다:
+라이브러리는 Griptape Model Management와 워크스페이스 상대 경로(`models/`)를 완벽 지원합니다:
+- **ViTMatte**: `hustvl/vitmatte-small-composition-1k` (서브픽셀 4K 엣지 분리)
+- **SAM 2.1**: `facebook/sam2.1-hiera-large` (시공간 비디오 객체 추적)
+
+**방법 A: 전용 스크립트로 다운로드**
+```bash
+# 기본 Hugging Face / Griptape 캐시로 다운로드
+python scripts/download_models.py
+
+# 워크스페이스 상대 경로(models/)로 다운로드
+python scripts/download_models.py --relative
+```
+
+**방법 B: 자동 다운로드 (Zero Config)**
+노드 실행 시 필요한 모델이 없으면 Griptape Model Management를 통해 자동으로 다운로드됩니다.
+
+### 3. Griptape Nodes Desktop 등록 (상대 경로)
+
+`%APPDATA%\Griptape Nodes\xdg_config_home\griptape_nodes\griptape_nodes_config.json`의 `libraries_to_register` 목록에 **상대 경로**로 등록합니다 (노드 실행 시 자동 동기화도 지원):
 
 ```json
 "libraries_to_register": [
-  "D:\\AI\\GripTape\\libraries\\IBKViT_MASK\\griptape_nodes_library.json"
+  "libraries/IBKViT_MASK/griptape_nodes_library.json"
+],
+"models_to_download": [
+  "hustvl/vitmatte-small-composition-1k",
+  "facebook/sam2.1-hiera-large"
 ]
 ```
 
-### 3. Griptape Nodes Desktop에서 새로고침
+### 4. Griptape Nodes Desktop에서 새로고침
 
 1. Griptape Nodes Desktop 실행
 2. 좌측 하단의 **Refresh Libraries** 버튼 클릭 (또는 Engine Restart)

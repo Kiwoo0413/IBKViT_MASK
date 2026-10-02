@@ -68,6 +68,12 @@ class ViTMaskExtractorNode(DataNode):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
+        try:
+            from core.griptape_model_manager import sync_griptape_config_models
+            sync_griptape_config_models()
+        except Exception:
+            pass
+
         # ── Inputs ───────────────────────────────────────────────────────────
         self.add_parameter(
             Parameter(
@@ -229,6 +235,12 @@ class ViTMaskExtractorNode(DataNode):
         )
 
     def process(self) -> None:
+        try:
+            from core.griptape_model_manager import ensure_all_models_ready
+            ensure_all_models_ready(auto_download=True)
+        except Exception:
+            pass
+
         input_video = str(self.get_parameter_value("input_video") or "").strip()
         if not input_video or not Path(input_video).exists():
             raise ValueError(f"Valid input_video path is required: '{input_video}'")

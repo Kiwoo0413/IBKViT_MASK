@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -41,7 +42,7 @@ class ViTEngine:
         self,
         device: Optional[str] = None,
         vitmatte_model_id: str = "hustvl/vitmatte-small-composition-1k",
-        sam2_model_cfg: str = "configs/sam2.1/sam2.1_hiera_b+.yaml",
+        sam2_model_cfg: str = "configs/sam2.1/sam2.1_hiera_l.yaml",
         sam2_checkpoint: Optional[str] = None,
     ) -> None:
         if device is None:
@@ -57,6 +58,21 @@ class ViTEngine:
         self._vitmatte_model = None
         self._vitmatte_processor = None
         self._sam2_predictor = None
+
+    def _resolve_sam2_paths(self) -> None:
+        """Resolve SAM 2 checkpoint (.pt) and config (.yaml) using Griptape model manager."""
+        if self.sam2_checkpoint and os.path.exists(self.sam2_checkpoint):
+            return
+
+        try:
+            from core.griptape_model_manager import resolve_model_weights_and_config
+            pt_path, yaml_path = resolve_model_weights_and_config("facebook/sam2.1-hiera-large")
+            if pt_path:
+                self.sam2_checkpoint = pt_path
+            if yaml_path:
+                self.sam2_model_cfg = yaml_path
+        except Exception as e:
+            logger.debug("Failed resolving SAM 2 paths via Griptape Model Manager: %s", e)
 
     # -------------------------------------------------------------------------
     # Trimap Generation (Pure White Core & Pure Black Background Guarantee)
@@ -397,10 +413,15 @@ class ViTEngine:
         try:
             from transformers import VitMatteForImageMatting, VitMatteImageProcessor
 
-            logger.info("Loading ViTMatte model: %s onto %s", self.vitmatte_model_id, self.device)
-            self._vitmatte_processor = VitMatteImageProcessor.from_pretrained(self.vitmatte_model_id)
+            # Resolve model weights/folder via Griptape model manager
+            from core.griptape_model_manager import resolve_model_weights_and_config
+            model_path, _ = resolve_model_weights_and_config(self.vitmatte_model_id)
+            load_target = model_path if model_path else self.vitmatte_model_id
+
+            logger.info("Loading ViTMatte model: %s onto %s", load_target, self.device)
+            self._vitmatte_processor = VitMatteImageProcessor.from_pretrained(load_target)
             self._vitmatte_model = VitMatteForImageMatting.from_pretrained(
-                self.vitmatte_model_id,
+                load_target,
                 torch_dtype=torch.float32 if self.device == "cpu" else torch.float16,
             ).to(self.device)
             self._vitmatte_model.eval()
@@ -506,13 +527,31 @@ class ViTEngine:
         if num_frames == 0:
             return []
 
-        try:
-            from sam2.build_sam import build_sam2_video_predictor
+        # Resolve weights & config if not set
+        self._resolve_sam2_paths()
 
-            predictor = build_sam2_video_predictor(self.sam2_model_cfg, self.sam2_checkpoint, device=self.device)
-            logger.info("SAM 2 Video Predictor initialized.")
-        except Exception as e:
-            logger.info("SAM 2 not loaded or configured (%s). Using adaptive ViT/Contour tracker.", e)
+        if self.sam2_checkpoint and os.path.exists(self.sam2_checkpoint):
+            try:
+                from sam2.build_sam import build_sam2_video_predictor
+
+                if self._sam2_predictor is None:
+                    self._sam2_predictor = build_sam2_video_predictor(
+                        self.sam2_model_cfg, self.sam2_checkpoint, device=self.device
+                    )
+                    logger.info("SAM 2 Video Predictor initialized on %s with checkpoint: %s", self.device, self.sam2_checkpoint)
+
+                return self._run_sam2_video_propagation(
+                    predictor=self._sam2_predictor,
+                    frame_sequence=frame_sequence,
+                    seed_points=seed_points,
+                    point_labels=point_labels,
+                    box_coords=box_coords,
+                    init_mask=init_mask,
+                )
+            except Exception as e:
+                logger.info("SAM 2 execution encountered (%s). Using adaptive ViT/Contour tracker fallback.", e)
+        else:
+            logger.info("SAM 2 optional checkpoint not loaded. Using adaptive ViT/Contour tracker.")
 
         return self._adaptive_flow_track(
             frame_sequence=frame_sequence,
@@ -521,6 +560,70 @@ class ViTEngine:
             init_mask=init_mask,
             screen_type=screen_type,
         )
+
+    @classmethod
+    def _run_sam2_video_propagation(
+        cls,
+        predictor: Any,
+        frame_sequence: List[np.ndarray],
+        seed_points: Optional[List[Tuple[float, float]]] = None,
+        point_labels: Optional[List[int]] = None,
+        box_coords: Optional[List[float]] = None,
+        init_mask: Optional[np.ndarray] = None,
+    ) -> List[np.ndarray]:
+        """Run SAM 2 video predictor session across frames."""
+        import tempfile
+
+        num_frames = len(frame_sequence)
+        h, w = frame_sequence[0].shape[:2]
+        masks = [np.zeros((h, w), dtype=np.uint8) for _ in range(num_frames)]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for idx, frame in enumerate(frame_sequence):
+                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) if frame.ndim == 3 else frame
+                cv2.imwrite(os.path.join(tmpdir, f"{idx:05d}.jpg"), frame_bgr)
+
+            inference_state = predictor.init_state(video_path=tmpdir)
+
+            box_np = None
+            if box_coords is not None and len(box_coords) == 4:
+                box_np = np.array(box_coords, dtype=np.float32)
+
+            pts_np = None
+            labels_np = None
+            if seed_points is not None and len(seed_points) > 0:
+                pts_np = np.array(seed_points, dtype=np.float32)
+                if point_labels is not None and len(point_labels) == len(seed_points):
+                    labels_np = np.array(point_labels, dtype=np.int32)
+                else:
+                    labels_np = np.ones(len(seed_points), dtype=np.int32)
+
+            if box_np is None and pts_np is None:
+                if init_mask is not None and np.any(init_mask > 0):
+                    y_idx, x_idx = np.where(init_mask > 0)
+                    box_np = np.array([float(np.min(x_idx)), float(np.min(y_idx)), float(np.max(x_idx)), float(np.max(y_idx))], dtype=np.float32)
+                else:
+                    box_np = np.array([w * 0.1, h * 0.1, w * 0.9, h * 0.9], dtype=np.float32)
+
+            predictor.add_new_points_or_box(
+                inference_state=inference_state,
+                frame_idx=0,
+                obj_id=1,
+                points=pts_np,
+                labels=labels_np,
+                box=box_np,
+            )
+
+            for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state):
+                if len(out_mask_logits) > 0:
+                    mask_tensor = (out_mask_logits[0] > 0.0).cpu().numpy().astype(np.uint8) * 255
+                    if mask_tensor.ndim == 3:
+                        mask_tensor = mask_tensor[0]
+                    if mask_tensor.shape[:2] != (h, w):
+                        mask_tensor = cv2.resize(mask_tensor, (w, h), interpolation=cv2.INTER_NEAREST)
+                    masks[out_frame_idx] = mask_tensor
+
+        return masks
 
     @classmethod
     def _adaptive_flow_track(
