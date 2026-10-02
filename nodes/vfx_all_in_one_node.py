@@ -38,13 +38,6 @@ class VFXKeyingViTAllInOneNode(DataNode):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
-        # Auto-sync Griptape Desktop configuration for model management
-        try:
-            from core.griptape_model_manager import sync_griptape_config_models
-            sync_griptape_config_models()
-        except Exception:
-            pass
-
         # ── Inputs ───────────────────────────────────────────────────────────
         self.add_parameter(
             Parameter(
@@ -279,14 +272,7 @@ class VFXKeyingViTAllInOneNode(DataNode):
         stab_seq_dir.mkdir(parents=True, exist_ok=True)
         raw_seq_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Ensure models are ready via Griptape Model Management
-        try:
-            from core.griptape_model_manager import ensure_all_models_ready
-            ensure_all_models_ready(auto_download=True)
-        except Exception:
-            pass
-
-        # 2. Initialize Engines
+        # 1. Initialize Engines
         ibk_eng = IBKEngine(screen_type=screen_type)
         vit_eng = ViTEngine()
         fusion_eng = MatteFusionEngine(

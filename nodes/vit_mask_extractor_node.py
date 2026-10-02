@@ -68,13 +68,6 @@ class ViTMaskExtractorNode(DataNode):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
-        # Auto-sync Griptape Desktop configuration for model management
-        try:
-            from core.griptape_model_manager import sync_griptape_config_models
-            sync_griptape_config_models()
-        except Exception:
-            pass
-
         # ── Inputs ───────────────────────────────────────────────────────────
         self.add_parameter(
             Parameter(
@@ -260,13 +253,6 @@ class ViTMaskExtractorNode(DataNode):
         vit_dir = out_path / "vit_alpha"
         core_dir.mkdir(parents=True, exist_ok=True)
         vit_dir.mkdir(parents=True, exist_ok=True)
-
-        # Ensure models are ready via Griptape Model Management
-        try:
-            from core.griptape_model_manager import ensure_all_models_ready
-            ensure_all_models_ready(auto_download=True)
-        except Exception:
-            pass
 
         engine = ViTEngine()
         info = VideoIO.get_video_info(input_video)

@@ -11,9 +11,7 @@ from __future__ import annotations
 
 import gc
 import logging
-import os
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
@@ -392,69 +390,23 @@ class ViTEngine:
     # -------------------------------------------------------------------------
 
     def _load_vitmatte(self) -> None:
-        """Lazy load Hugging Face VitMatte model and image processor, with auto-download if missing."""
+        """Lazy load Hugging Face VitMatte model and image processor."""
         if self._vitmatte_model is not None:
             return
-
-        # Check local relative models/ directory inside library, workspace, or cwd first
-        lib_root = Path(__file__).resolve().parent.parent
-        workspace_root = lib_root.parent.parent
-
-        target_model = self.vitmatte_model_id
-
-        # If vitmatte_model_id was specified as a relative path to a local directory:
-        p_direct = Path(target_model)
-        if not p_direct.is_absolute():
-            for base in [Path.cwd(), lib_root, workspace_root]:
-                cand = (base / p_direct).resolve()
-                if cand.exists() and (cand / "config.json").exists():
-                    target_model = str(cand)
-                    break
-
-        if target_model == self.vitmatte_model_id:
-            possible_local_dirs = [
-                lib_root / "models" / "vitmatte-small-composition-1k",
-                lib_root / "models" / "hustvl--vitmatte-small-composition-1k",
-                lib_root / "models" / self.vitmatte_model_id.replace("/", "--"),
-                workspace_root / "models" / "vitmatte-small-composition-1k",
-                workspace_root / "models" / "hustvl--vitmatte-small-composition-1k",
-                Path("models") / "vitmatte-small-composition-1k",
-            ]
-            for p in possible_local_dirs:
-                if p.exists() and (p / "config.json").exists():
-                    target_model = str(p.resolve())
-                    logger.info("Found local relative ViTMatte model directory: %s", target_model)
-                    break
 
         try:
             from transformers import VitMatteForImageMatting, VitMatteImageProcessor
 
-            logger.info("Loading ViTMatte model: %s onto %s", target_model, self.device)
-            self._vitmatte_processor = VitMatteImageProcessor.from_pretrained(target_model)
+            logger.info("Loading ViTMatte model: %s onto %s", self.vitmatte_model_id, self.device)
+            self._vitmatte_processor = VitMatteImageProcessor.from_pretrained(self.vitmatte_model_id)
             self._vitmatte_model = VitMatteForImageMatting.from_pretrained(
-                target_model,
+                self.vitmatte_model_id,
                 torch_dtype=torch.float32 if self.device == "cpu" else torch.float16,
             ).to(self.device)
             self._vitmatte_model.eval()
         except Exception as e:
-            try:
-                from core.griptape_model_manager import download_model_via_griptape
-
-                logger.info("[Griptape Model Manager] ViTMatte not found locally (%s). Downloading via Griptape Model Management: %s...", e, self.vitmatte_model_id)
-                success, dl_path = download_model_via_griptape(self.vitmatte_model_id)
-                load_target = dl_path if (success and dl_path) else self.vitmatte_model_id
-
-                self._vitmatte_processor = VitMatteImageProcessor.from_pretrained(load_target)
-                self._vitmatte_model = VitMatteForImageMatting.from_pretrained(
-                    load_target,
-                    torch_dtype=torch.float32 if self.device == "cpu" else torch.float16,
-                ).to(self.device)
-                self._vitmatte_model.eval()
-                logger.info("[Griptape Model Manager] ViTMatte model downloaded and loaded successfully.")
-                return
-            except Exception as dl_err:
-                logger.warning("Could not download or load ViTMatte via Griptape Model Manager (%s / %s). Falling back to guided filter.", e, dl_err)
-                self._vitmatte_model = False
+            logger.warning("Could not load Hugging Face VitMatte (%s). Falling back to guided filter matting.", e)
+            self._vitmatte_model = False
 
     def predict_vitmatte(
         self,
@@ -535,85 +487,8 @@ class ViTEngine:
         return np.clip(refined, 0.0, 1.0).astype(np.float32)
 
     # -------------------------------------------------------------------------
-    # SAM 2 Spatio-Temporal Tracking Integration & Model Resolution
+    # SAM 2 Spatio-Temporal Tracking Integration
     # -------------------------------------------------------------------------
-
-    @staticmethod
-    def _resolve_sam2_paths(
-        checkpoint: Optional[str] = None,
-        model_cfg: Optional[str] = None,
-    ) -> Tuple[Optional[str], Optional[str]]:
-        """
-        Automatically locate SAM 2 checkpoint (.pt) and config (.yaml) in local relative models/
-        folder or local Hugging Face cache if not explicitly provided or found on disk.
-        All paths support workspace-relative and repository-relative resolution.
-        """
-        lib_root = Path(__file__).resolve().parent.parent
-        workspace_root = lib_root.parent.parent
-
-        # 1. Check if checkpoint was explicitly passed (resolve if relative)
-        if checkpoint:
-            p_chk = Path(checkpoint)
-            if not p_chk.is_absolute():
-                for base in [Path.cwd(), lib_root, workspace_root]:
-                    cand = (base / p_chk).resolve()
-                    if cand.exists():
-                        p_chk = cand
-                        break
-            if p_chk.exists():
-                if model_cfg:
-                    p_cfg = Path(model_cfg)
-                    if not p_cfg.is_absolute():
-                        for base in [Path.cwd(), lib_root, workspace_root]:
-                            cand_cfg = (base / p_cfg).resolve()
-                            if cand_cfg.exists():
-                                model_cfg = str(cand_cfg)
-                                break
-                return str(p_chk), model_cfg
-
-        # 2. Check local relative models/ folder inside library and workspace
-        possible_local_sam2 = [
-            lib_root / "models" / "sam2.1_hiera_large.pt",
-            lib_root / "models" / "facebook--sam2.1-hiera-large" / "sam2.1_hiera_large.pt",
-            lib_root / "models" / "sam2.1-hiera-large" / "sam2.1_hiera_large.pt",
-            workspace_root / "models" / "sam2.1_hiera_large.pt",
-            workspace_root / "models" / "facebook--sam2.1-hiera-large" / "sam2.1_hiera_large.pt",
-            Path("models") / "sam2.1_hiera_large.pt",
-            Path("models") / "facebook--sam2.1-hiera-large" / "sam2.1_hiera_large.pt",
-        ]
-        for p in possible_local_sam2:
-            if p.exists():
-                yaml_p = p.parent / "sam2.1_hiera_l.yaml"
-                logger.info("Auto-discovered local relative SAM 2 checkpoint: %s", p)
-                return str(p.resolve()), str(yaml_p.resolve()) if yaml_p.exists() else model_cfg
-
-        # 3. Resolve via Griptape Model Management (auto-downloads if missing in another local environment)
-        try:
-            from core.griptape_model_manager import resolve_model_weights_and_config
-
-            ckpt, cfg = resolve_model_weights_and_config("facebook/sam2.1-hiera-large")
-            if ckpt and Path(ckpt).exists():
-                logger.info("[Griptape Model Manager] Auto-discovered SAM 2 checkpoint via Griptape Model Management: %s", ckpt)
-                return ckpt, cfg if cfg else model_cfg
-        except Exception as e:
-            logger.debug("[Griptape Model Manager] Could not resolve SAM 2 via Griptape Model Management: %s", e)
-
-        return checkpoint, model_cfg
-
-    @classmethod
-    def ensure_models_downloaded(cls) -> bool:
-        """
-        Verify and ensure that ViTMatte and SAM 2 models are downloaded
-        and synchronized with Griptape Nodes Desktop Model Management.
-        """
-        try:
-            from core.griptape_model_manager import ensure_all_models_ready
-
-            return ensure_all_models_ready(auto_download=True)
-        except Exception as ex:
-            logger.warning("[Griptape Model Manager] Auto model download verification failed: %s", ex)
-            return False
-
 
     def track_sam2_frames(
         self,
@@ -634,9 +509,8 @@ class ViTEngine:
         try:
             from sam2.build_sam import build_sam2_video_predictor
 
-            ckpt, cfg = self._resolve_sam2_paths(self.sam2_checkpoint, self.sam2_model_cfg)
-            predictor = build_sam2_video_predictor(cfg, ckpt, device=self.device)
-            logger.info("SAM 2 Video Predictor initialized with checkpoint: %s", ckpt)
+            predictor = build_sam2_video_predictor(self.sam2_model_cfg, self.sam2_checkpoint, device=self.device)
+            logger.info("SAM 2 Video Predictor initialized.")
         except Exception as e:
             logger.info("SAM 2 not loaded or configured (%s). Using adaptive ViT/Contour tracker.", e)
 
