@@ -37,12 +37,11 @@ except ImportError:
 import cv2
 import numpy as np
 
+from ibkvit_core.griptape_compat import DataNode, Parameter, ParameterMode
 from ibkvit_core.ibk_engine import IBKEngine, ScreenType
 from ibkvit_core.io_utils import ImageSequenceIO, VideoIO
 from ibkvit_core.matte_fusion import FusionConfig, MatteFusionEngine
-from ibkvit_core.vit_engine import ViTEngine
-from nodes.griptape_compat import DataNode, Parameter, ParameterMode
-from nodes.vit_mask_extractor_node import parse_box, parse_coords
+from ibkvit_core.vit_engine import ViTEngine, parse_box, parse_coords
 
 
 class VFXKeyingViTAllInOneNode(DataNode):

@@ -39,7 +39,7 @@ import numpy as np
 
 from ibkvit_core.io_utils import ImageSequenceIO, VideoIO
 from ibkvit_core.matte_fusion import FusionConfig, MatteFusionEngine
-from nodes.griptape_compat import DataNode, Parameter, ParameterMode
+from ibkvit_core.griptape_compat import DataNode, Parameter, ParameterMode
 
 
 class VFXMatteRefinerNode(DataNode):

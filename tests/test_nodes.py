@@ -21,7 +21,7 @@ from nodes import (
     VFXMaskExportNode,
     VFXKeyingViTAllInOneNode,
 )
-from nodes.griptape_compat import ParameterMode
+from ibkvit_core.griptape_compat import ParameterMode
 
 
 class TestNodesSchema:

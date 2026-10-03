@@ -35,7 +35,7 @@ import cv2
 import numpy as np
 
 from ibkvit_core.io_utils import ImageSequenceIO, VideoIO
-from nodes.griptape_compat import DataNode, Parameter, ParameterMode
+from ibkvit_core.griptape_compat import DataNode, Parameter, ParameterMode
 
 
 class VFXMaskExportNode(DataNode):

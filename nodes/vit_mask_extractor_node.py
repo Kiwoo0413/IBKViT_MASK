@@ -35,8 +35,8 @@ import cv2
 import numpy as np
 
 from ibkvit_core.io_utils import ImageSequenceIO, VideoIO
-from ibkvit_core.vit_engine import ViTEngine
-from nodes.griptape_compat import DataNode, Parameter, ParameterMode
+from ibkvit_core.vit_engine import ViTEngine, parse_coords, parse_box
+from ibkvit_core.griptape_compat import DataNode, Parameter, ParameterMode
 
 
 def parse_coords(coord_str: str) -> Optional[List[Tuple[float, float]]]:

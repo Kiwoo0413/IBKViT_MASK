@@ -37,7 +37,7 @@ import numpy as np
 from ibkvit_core.ibk_engine import IBKEngine, ScreenType
 from ibkvit_core.io_utils import ImageSequenceIO, VideoIO
 from ibkvit_core.matte_fusion import MatteFusionEngine
-from nodes.griptape_compat import DataNode, Parameter, ParameterMode
+from ibkvit_core.griptape_compat import DataNode, Parameter, ParameterMode
 
 
 class IBKKeyerNode(DataNode):

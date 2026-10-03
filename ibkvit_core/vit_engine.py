@@ -9,6 +9,7 @@ Supports:
 
 from __future__ import annotations
 
+import ast
 import gc
 import logging
 import os
@@ -20,6 +21,45 @@ import numpy as np
 import torch
 
 logger = logging.getLogger("ViTEngine")
+
+
+def parse_coords(coord_str: str) -> Optional[List[Tuple[float, float]]]:
+    """Parse string coordinates like '100,200' or '[[100,200],[300,400]]'."""
+    if not coord_str or not coord_str.strip():
+        return None
+    s = coord_str.strip()
+    try:
+        if "[" in s:
+            parsed = ast.literal_eval(s)
+            if isinstance(parsed, list):
+                if len(parsed) > 0 and isinstance(parsed[0], (list, tuple)):
+                    return [(float(p[0]), float(p[1])) for p in parsed]
+                elif len(parsed) >= 2 and isinstance(parsed[0], (int, float)):
+                    return [(float(parsed[0]), float(parsed[1]))]
+        parts = [float(p.strip()) for p in s.split(",") if p.strip()]
+        if len(parts) >= 2:
+            return [(parts[0], parts[1])]
+    except Exception:
+        pass
+    return None
+
+
+def parse_box(box_str: str) -> Optional[List[float]]:
+    """Parse string box [x1, y1, x2, y2]."""
+    if not box_str or not box_str.strip():
+        return None
+    s = box_str.strip()
+    try:
+        if "[" in s:
+            parsed = ast.literal_eval(s)
+            if isinstance(parsed, list) and len(parsed) == 4:
+                return [float(v) for v in parsed]
+        parts = [float(p.strip()) for p in s.split(",") if p.strip()]
+        if len(parts) == 4:
+            return parts
+    except Exception:
+        pass
+    return None
 
 
 @dataclass

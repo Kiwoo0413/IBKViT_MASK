@@ -14,7 +14,7 @@ if str(_LIB_ROOT) not in sys.path:
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
 from .ibk_engine import IBKEngine, ScreenType, IBKMatteResult
-from .vit_engine import ViTEngine, ViTMatteResult
+from .vit_engine import ViTEngine, ViTMatteResult, parse_coords, parse_box
 from .matte_fusion import MatteFusionEngine, FusionConfig
 from .io_utils import VideoIO, ImageSequenceIO
 
@@ -24,6 +24,8 @@ __all__ = [
     "IBKMatteResult",
     "ViTEngine",
     "ViTMatteResult",
+    "parse_coords",
+    "parse_box",
     "MatteFusionEngine",
     "FusionConfig",
     "VideoIO",
