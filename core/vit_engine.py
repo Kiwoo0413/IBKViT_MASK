@@ -58,6 +58,7 @@ class ViTEngine:
         self._vitmatte_model = None
         self._vitmatte_processor = None
         self._sam2_predictor = None
+        self.last_coarse_masks: List[np.ndarray] = []
 
     def _resolve_sam2_paths(self) -> None:
         """Resolve SAM 2 checkpoint (.pt) and config (.yaml) using Griptape model manager."""
@@ -377,6 +378,7 @@ class ViTEngine:
             init_mask=detected_init_mask,
             screen_type=screen_type,
         )
+        self.last_coarse_masks = coarse_masks
 
         raw_cores: List[np.ndarray] = []
         raw_envelopes: List[np.ndarray] = []

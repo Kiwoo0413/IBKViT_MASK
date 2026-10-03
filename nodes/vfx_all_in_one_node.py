@@ -127,6 +127,16 @@ class VFXKeyingViTAllInOneNode(DataNode):
         )
         self.add_parameter(
             Parameter(
+                name="use_vitmatte_refinement",
+                type="bool",
+                default_value=True,
+                tooltip="엣지 전이 영역(Unknown Zone)에 ViTMatte 신경망 서브픽셀 정밀 추론 적용 (True: 고품질 신경망-광학 하이브리드 모드, False: 초고속 60fps 순수 광학 융합 모드)",
+                display_name="Use ViTMatte Refinement",
+                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
+            )
+        )
+        self.add_parameter(
+            Parameter(
                 name="output_resolution",
                 type="str",
                 default_value="4k",
@@ -255,6 +265,7 @@ class VFXKeyingViTAllInOneNode(DataNode):
         max_frames = int(self.get_parameter_value("max_frames") or 0)
         out_dir_param = str(self.get_parameter_value("output_dir") or "").strip()
         enable_adaptive_blur = bool(self.get_parameter_value("enable_adaptive_blur") if self.get_parameter_value("enable_adaptive_blur") is not None else True)
+        use_vit_refine = bool(self.get_parameter_value("use_vitmatte_refinement") if self.get_parameter_value("use_vitmatte_refinement") is not None else True)
 
         seed_points = parse_coords(seed_str)
         box_coords = parse_box(box_str)
@@ -318,6 +329,7 @@ class VFXKeyingViTAllInOneNode(DataNode):
         for idx, frame in enumerate(frames):
             # A. IBK Branch: Extracts pristine optical edge transmission matte (hair, motion blur, transparency)
             ibk_res = ibk_eng.execute_keying(rgb_image=frame)
+            current_edge = ibk_res.alpha
 
             # B. ViT Cores & Envelopes for this frame
             c_stab = stab_cores[idx] if idx < len(stab_cores) else None
@@ -325,14 +337,35 @@ class VFXKeyingViTAllInOneNode(DataNode):
             c_raw = raw_cores[idx] if idx < len(raw_cores) else None
             env_raw = raw_envs[idx] if idx < len(raw_envs) else None
 
+            # B-2. Optional ViTMatte Neural Edge Refinement on Transition Zone
+            if use_vit_refine:
+                coarse_list = getattr(vit_eng, "last_coarse_masks", None)
+                if coarse_list and idx < len(coarse_list):
+                    cm = coarse_list[idx]
+                elif env_raw is not None:
+                    cm = env_raw
+                else:
+                    cm = frame
+                vit_res = vit_eng.extract_vit_matte(
+                    rgb_image=frame,
+                    coarse_mask=cm,
+                    enable_adaptive_blur=enable_adaptive_blur,
+                    enable_roi_crop=True,
+                    screen_type=screen_type,
+                )
+                # Complementary Fusion in transition zone:
+                # ViTMatte provides the semantic boundary without background noise,
+                # while IBK preserves pristine optical light transmission on fine hair strands.
+                current_edge = np.clip(0.5 * ibk_res.alpha + 0.5 * vit_res.alpha, 0.0, 1.0)
+
             # C. Non-destructive Matte Fusion:
             # - Inner core is 100% pure white (solid, no holes, de-jittered by ViT)
             # - Outer background is 100% pure black (no screen noise, de-jittered by ViT)
-            # - Transition zone is pristine IBK edge transmission
+            # - Transition zone is pristine hybrid edge transmission
             # - No critical/aggressive temporal edge hacks in fusion!
             m_stab, m_raw = fusion_eng.process_frame_dual(
                 core_matte=c_stab,
-                edge_matte=ibk_res.alpha,
+                edge_matte=current_edge,
                 envelope_matte=env_stab,
                 raw_core_matte=c_raw,
                 raw_envelope_matte=env_raw,
