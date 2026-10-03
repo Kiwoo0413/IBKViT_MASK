@@ -7,9 +7,15 @@ Integrates SAM 2 spatio-temporal tracking and ViTMatte Vision Transformer mattin
 from __future__ import annotations
 
 import ast
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
+
+# Ensure library root is in sys.path when loaded dynamically by Griptape Nodes Desktop
+_LIB_ROOT = Path(__file__).resolve().parent.parent
+if str(_LIB_ROOT) not in sys.path:
+    sys.path.insert(0, str(_LIB_ROOT))
 
 import cv2
 import numpy as np

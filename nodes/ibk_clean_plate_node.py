@@ -6,9 +6,15 @@ Generates backing screen clean plates (IBKColour) from video or image footage.
 
 from __future__ import annotations
 
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+# Ensure library root is in sys.path when loaded dynamically by Griptape Nodes Desktop
+_LIB_ROOT = Path(__file__).resolve().parent.parent
+if str(_LIB_ROOT) not in sys.path:
+    sys.path.insert(0, str(_LIB_ROOT))
 
 from core.ibk_engine import IBKEngine, ScreenType
 from core.io_utils import ImageSequenceIO, VideoIO
