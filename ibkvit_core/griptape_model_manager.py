@@ -29,14 +29,6 @@ REQUIRED_MODELS: List[Dict[str, Any]] = [
         "relative_dir": "models/vitmatte-small-composition-1k",
         "essential_files": ["config.json", "model.safetensors"],
     },
-    {
-        "id": "facebook/sam2.1-hiera-large",
-        "name": "SAM 2.1 Hiera Large",
-        "family": "sam2",
-        "key_support": "NO_KEY_REQUIRED",
-        "relative_dir": "models/sam2.1-hiera-large",
-        "essential_files": ["sam2.1_hiera_large.pt", "sam2.1_hiera_l.yaml"],
-    },
 ]
 
 

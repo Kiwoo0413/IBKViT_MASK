@@ -106,10 +106,9 @@ def main() -> None:
         install_sam2_into_griptape()
 
     target_models = []
-    if args.model in ("all", "vitmatte"):
-        target_models.append(REQUIRED_MODELS[0])
-    if args.model in ("all", "sam2"):
-        target_models.append(REQUIRED_MODELS[1])
+    for model_spec in REQUIRED_MODELS:
+        if args.model == "all" or model_spec.get("family") == args.model:
+            target_models.append(model_spec)
 
     ws_root = get_workspace_root()
     logger.info("Griptape Workspace Root: %s", ws_root)

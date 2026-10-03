@@ -82,6 +82,7 @@ class ViTEngine:
         self,
         device: Optional[str] = None,
         vitmatte_model_id: str = "hustvl/vitmatte-small-composition-1k",
+        enable_sam2: bool = False,
         sam2_model_cfg: str = "configs/sam2.1/sam2.1_hiera_l.yaml",
         sam2_checkpoint: Optional[str] = None,
     ) -> None:
@@ -91,6 +92,7 @@ class ViTEngine:
             self.device = device
 
         self.vitmatte_model_id = vitmatte_model_id
+        self.enable_sam2 = enable_sam2
         self.sam2_model_cfg = sam2_model_cfg
         self.sam2_checkpoint = sam2_checkpoint
 
@@ -101,7 +103,10 @@ class ViTEngine:
         self.last_coarse_masks: List[np.ndarray] = []
 
     def _resolve_sam2_paths(self) -> None:
-        """Resolve SAM 2 checkpoint (.pt) and config (.yaml) using Griptape model manager."""
+        """Resolve SAM 2 checkpoint (.pt) and config (.yaml) using Griptape model manager if enabled."""
+        if not self.enable_sam2:
+            return
+
         if self.sam2_checkpoint and os.path.exists(self.sam2_checkpoint):
             return
 
@@ -569,6 +574,16 @@ class ViTEngine:
         if num_frames == 0:
             return []
 
+        # If SAM 2 is disabled (default), use fast, lightweight adaptive spatio-temporal tracker
+        if not self.enable_sam2:
+            return self._adaptive_flow_track(
+                frame_sequence=frame_sequence,
+                seed_points=seed_points,
+                box_coords=box_coords,
+                init_mask=init_mask,
+                screen_type=screen_type,
+            )
+
         # Resolve weights & config if not set
         self._resolve_sam2_paths()
 
@@ -591,9 +606,7 @@ class ViTEngine:
                     init_mask=init_mask,
                 )
             except Exception as e:
-                logger.info("SAM 2 execution encountered (%s). Using adaptive ViT/Contour tracker fallback.", e)
-        else:
-            logger.info("SAM 2 optional checkpoint not loaded. Using adaptive ViT/Contour tracker.")
+                logger.debug("SAM 2 execution encountered (%s). Using adaptive ViT/Contour tracker.", e)
 
         return self._adaptive_flow_track(
             frame_sequence=frame_sequence,
@@ -602,6 +615,8 @@ class ViTEngine:
             init_mask=init_mask,
             screen_type=screen_type,
         )
+
+    track_video_frames = track_sam2_frames
 
     @classmethod
     def _run_sam2_video_propagation(

@@ -81,7 +81,7 @@ def parse_box(box_str: str) -> Optional[List[float]]:
 class ViTMaskExtractorNode(DataNode):
     """
     Node 03: ViT Mask Extractor (Vision Transformer)
-    SAM 2 기반 시공간 객체 추적과 ViTMatte(Vision Transformer Matting)를 결합하여
+    적응형 시공간 객체 추적과 ViTMatte(Vision Transformer Matting)를 결합하여
     전경 코어 마스크(Core), 3구역 트라이맵(Trimap), 고정밀 서브픽셀 알파(ViT Alpha)를 추출합니다.
     """
 
