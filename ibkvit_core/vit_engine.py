@@ -66,7 +66,7 @@ class ViTEngine:
             return
 
         try:
-            from core.griptape_model_manager import resolve_model_weights_and_config
+            from ibkvit_core.griptape_model_manager import resolve_model_weights_and_config
             pt_path, yaml_path = resolve_model_weights_and_config("facebook/sam2.1-hiera-large")
             if pt_path:
                 self.sam2_checkpoint = pt_path
@@ -416,7 +416,7 @@ class ViTEngine:
             from transformers import VitMatteForImageMatting, VitMatteImageProcessor
 
             # Resolve model weights/folder via Griptape model manager
-            from core.griptape_model_manager import resolve_model_weights_and_config
+            from ibkvit_core.griptape_model_manager import resolve_model_weights_and_config
             model_path, _ = resolve_model_weights_and_config(self.vitmatte_model_id)
             load_target = model_path if model_path else self.vitmatte_model_id
 
@@ -663,7 +663,7 @@ class ViTEngine:
                 current_mask = np.zeros((h, w), dtype=np.uint8)
                 crop = frame[y1:y2, x1:x2]
                 if crop.size > 0:
-                    from core.matte_fusion import MatteFusionEngine
+                    from ibkvit_core.matte_fusion import MatteFusionEngine
                     saliency = MatteFusionEngine.retrack_object_saliency(crop, min_distance_from_edge=0.0)
                     if np.any(saliency > 0.1):
                         current_mask[y1:y2, x1:x2] = (saliency * 255.0).astype(np.uint8)

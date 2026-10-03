@@ -31,19 +31,12 @@ except ImportError:
         if _sys_site.exists() and str(_sys_site) not in sys.path:
             sys.path.append(str(_sys_site))
 
-# Ensure 'core' in sys.modules points to this library's core package
-if "core" in sys.modules:
-    _m = sys.modules["core"]
-    _f = getattr(_m, "__file__", "") or ""
-    if not _f or str((_LIB_ROOT / "core").resolve()).lower() not in str(Path(_f).resolve()).lower():
-        del sys.modules["core"]
-
 import cv2
 import numpy as np
 
-from core.ibk_engine import IBKEngine, ScreenType
-from core.io_utils import ImageSequenceIO, VideoIO
-from core.matte_fusion import MatteFusionEngine
+from ibkvit_core.ibk_engine import IBKEngine, ScreenType
+from ibkvit_core.io_utils import ImageSequenceIO, VideoIO
+from ibkvit_core.matte_fusion import MatteFusionEngine
 from nodes.griptape_compat import DataNode, Parameter, ParameterMode
 
 
@@ -243,7 +236,7 @@ class IBKKeyerNode(DataNode):
 
         frames = VideoIO.read_frames(input_video, max_frames=limit)
 
-        from core.matte_fusion import MatteFusionEngine
+        from ibkvit_core.matte_fusion import MatteFusionEngine
         if len(frames) > 0:
             detected_screen = MatteFusionEngine.auto_detect_screen_type(frames[0])
             if screen_type in ("auto", "") or (screen_type == "green" and detected_screen == "blue"):

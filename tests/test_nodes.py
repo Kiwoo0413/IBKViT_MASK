@@ -95,7 +95,7 @@ class TestNodesSchema:
     def test_vfx_all_in_one_node_process(self, tmp_path):
         import cv2
         import numpy as np
-        from core.io_utils import VideoIO
+        from ibkvit_core.io_utils import VideoIO
 
         # Create a synthetic 2-frame MP4 video
         video_path = tmp_path / "greenscreen_shot.mp4"
@@ -138,7 +138,7 @@ class TestNodesSchema:
 
     def test_vfx_all_in_one_node_process_exr(self, tmp_path):
         import numpy as np
-        from core.io_utils import VideoIO
+        from ibkvit_core.io_utils import VideoIO
 
         video_path = tmp_path / "greenscreen_shot2.mp4"
         frames = []
@@ -166,7 +166,7 @@ class TestNodesSchema:
     def test_vfx_matte_refiner_node_process(self, tmp_path):
         import numpy as np
         import cv2
-        from core.io_utils import VideoIO
+        from ibkvit_core.io_utils import VideoIO
 
         video_path = tmp_path / "test_shot.mp4"
         f = np.zeros((36, 64, 3), dtype=np.uint8)

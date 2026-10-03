@@ -34,18 +34,11 @@ except ImportError:
         if _sys_site.exists() and str(_sys_site) not in sys.path:
             sys.path.append(str(_sys_site))
 
-# Ensure 'core' in sys.modules points to this library's core package
-if "core" in sys.modules:
-    _m = sys.modules["core"]
-    _f = getattr(_m, "__file__", "") or ""
-    if not _f or str((_LIB_ROOT / "core").resolve()).lower() not in str(Path(_f).resolve()).lower():
-        del sys.modules["core"]
-
 import cv2
 import numpy as np
 
-from core.io_utils import ImageSequenceIO, VideoIO
-from core.matte_fusion import FusionConfig, MatteFusionEngine
+from ibkvit_core.io_utils import ImageSequenceIO, VideoIO
+from ibkvit_core.matte_fusion import FusionConfig, MatteFusionEngine
 from nodes.griptape_compat import DataNode, Parameter, ParameterMode
 
 

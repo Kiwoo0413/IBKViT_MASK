@@ -14,8 +14,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.matte_fusion import MatteFusionEngine, FusionConfig
-from core.io_utils import VideoIO
+from ibkvit_core.matte_fusion import MatteFusionEngine, FusionConfig
+from ibkvit_core.io_utils import VideoIO
 
 
 class TestMatteFusion:

@@ -27,7 +27,7 @@ LIB_ROOT = SCRIPT_DIR.parent
 if str(LIB_ROOT) not in sys.path:
     sys.path.insert(0, str(LIB_ROOT))
 
-from core.griptape_model_manager import (
+from ibkvit_core.griptape_model_manager import (
     REQUIRED_MODELS,
     download_model_via_griptape,
     get_griptape_python_executable,

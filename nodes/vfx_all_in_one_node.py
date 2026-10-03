@@ -34,20 +34,13 @@ except ImportError:
         if _sys_site.exists() and str(_sys_site) not in sys.path:
             sys.path.append(str(_sys_site))
 
-# Ensure 'core' in sys.modules points to this library's core package
-if "core" in sys.modules:
-    _m = sys.modules["core"]
-    _f = getattr(_m, "__file__", "") or ""
-    if not _f or str((_LIB_ROOT / "core").resolve()).lower() not in str(Path(_f).resolve()).lower():
-        del sys.modules["core"]
-
 import cv2
 import numpy as np
 
-from core.ibk_engine import IBKEngine, ScreenType
-from core.io_utils import ImageSequenceIO, VideoIO
-from core.matte_fusion import FusionConfig, MatteFusionEngine
-from core.vit_engine import ViTEngine
+from ibkvit_core.ibk_engine import IBKEngine, ScreenType
+from ibkvit_core.io_utils import ImageSequenceIO, VideoIO
+from ibkvit_core.matte_fusion import FusionConfig, MatteFusionEngine
+from ibkvit_core.vit_engine import ViTEngine
 from nodes.griptape_compat import DataNode, Parameter, ParameterMode
 from nodes.vit_mask_extractor_node import parse_box, parse_coords
 
@@ -66,7 +59,7 @@ class VFXKeyingViTAllInOneNode(DataNode):
         super().__init__(**kwargs)
 
         try:
-            from core.griptape_model_manager import sync_griptape_config_models
+            from ibkvit_core.griptape_model_manager import sync_griptape_config_models
             sync_griptape_config_models()
         except Exception:
             pass
@@ -271,7 +264,7 @@ class VFXKeyingViTAllInOneNode(DataNode):
 
     def process(self) -> None:
         try:
-            from core.griptape_model_manager import ensure_all_models_ready
+            from ibkvit_core.griptape_model_manager import ensure_all_models_ready
             ensure_all_models_ready(auto_download=True)
         except Exception:
             pass

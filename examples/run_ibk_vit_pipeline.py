@@ -17,10 +17,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.ibk_engine import IBKEngine, ScreenType
-from core.io_utils import ImageSequenceIO, VideoIO
-from core.matte_fusion import FusionConfig, MatteFusionEngine
-from core.vit_engine import ViTEngine
+from ibkvit_core.ibk_engine import IBKEngine, ScreenType
+from ibkvit_core.io_utils import ImageSequenceIO, VideoIO
+from ibkvit_core.matte_fusion import FusionConfig, MatteFusionEngine
+from ibkvit_core.vit_engine import ViTEngine
 
 
 def main() -> None:
