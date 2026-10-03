@@ -1,23 +1,21 @@
 """
 VFX IBK & ViT Masking Toolkit - Model Download & Environment Setup Script.
 
-Downloads required Vision Transformer models (ViTMatte & SAM 2.1) using
+Downloads required Vision Transformer models (ViTMatte) using
 workspace-relative paths and Griptape Model Management integration.
 
 Usage:
   python scripts/download_models.py [options]
 
 Options:
-  --model {all,vitmatte,sam2}   Specify model to download (default: all)
-  --relative                     Download into workspace relative models/ folder
-  --install-sam2                 Install SAM 2 package into Griptape's Python environment
-  --force                        Force re-download even if already downloaded
+  --model {all,vitmatte}   Specify model to download (default: all)
+  --relative               Download into workspace relative models/ folder
+  --force                  Force re-download even if already downloaded
 """
 
 import argparse
 import logging
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -30,7 +28,6 @@ if str(LIB_ROOT) not in sys.path:
 from ibkvit_core.griptape_model_manager import (
     REQUIRED_MODELS,
     download_model_via_griptape,
-    get_griptape_python_executable,
     get_workspace_root,
     is_model_downloaded,
     setup_griptape_environment,
@@ -45,40 +42,11 @@ logging.basicConfig(
 logger = logging.getLogger("VFX_IBK_ViT.Downloader")
 
 
-def install_sam2_into_griptape() -> bool:
-    """Install Meta's SAM 2 package into Griptape's bundled python environment."""
-    gt_py = get_griptape_python_executable()
-    if not gt_py:
-        logger.warning("Griptape bundled Python executable not found. Skipping Griptape sam2 installation.")
-        return False
-
-    logger.info("Installing SAM 2 into Griptape Python: %s", gt_py)
-    cmd = [
-        gt_py,
-        "-m",
-        "pip",
-        "install",
-        "--break-system-packages",
-        "git+https://github.com/facebookresearch/sam2.git",
-    ]
-    try:
-        res = subprocess.run(cmd, check=False)
-        if res.returncode == 0:
-            logger.info("✓ SAM 2 successfully installed in Griptape Python environment.")
-            return True
-        else:
-            logger.warning("SAM 2 installation exited with return code: %d", res.returncode)
-            return False
-    except Exception as e:
-        logger.error("Failed installing SAM 2 into Griptape Python: %s", e)
-        return False
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Download VFX IBK & ViT AI Models (Relative Path & Griptape Integration)")
     parser.add_argument(
         "--model",
-        choices=["all", "vitmatte", "sam2"],
+        choices=["all", "vitmatte"],
         default="all",
         help="Model to download (default: all)",
     )
@@ -86,11 +54,6 @@ def main() -> None:
         "--relative",
         action="store_true",
         help="Store models in workspace relative 'models/' directory instead of default cache",
-    )
-    parser.add_argument(
-        "--install-sam2",
-        action="store_true",
-        help="Install SAM 2 package into Griptape's bundled Python environment",
     )
     parser.add_argument(
         "--force",
@@ -101,9 +64,6 @@ def main() -> None:
 
     setup_griptape_environment()
     sync_griptape_config_models()
-
-    if args.install_sam2:
-        install_sam2_into_griptape()
 
     target_models = []
     for model_spec in REQUIRED_MODELS:
