@@ -12,10 +12,31 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-# Ensure library root is in sys.path when loaded dynamically by Griptape Nodes Desktop
+# Ensure library root and its virtualenv site-packages are in sys.path
 _LIB_ROOT = Path(__file__).resolve().parent.parent
 if str(_LIB_ROOT) not in sys.path:
     sys.path.insert(0, str(_LIB_ROOT))
+_VENV_SITE = _LIB_ROOT / ".venv" / "Lib" / "site-packages"
+if _VENV_SITE.exists() and str(_VENV_SITE) not in sys.path:
+    sys.path.append(str(_VENV_SITE))
+
+# Ensure host Python packages (cv2, torch, etc.) are reachable if running inside embedded engine
+try:
+    import cv2  # noqa: F401
+except ImportError:
+    import shutil
+    _sys_py = shutil.which("python")
+    if _sys_py:
+        _sys_site = Path(_sys_py).resolve().parent / "Lib" / "site-packages"
+        if _sys_site.exists() and str(_sys_site) not in sys.path:
+            sys.path.append(str(_sys_site))
+
+# Ensure 'core' in sys.modules points to this library's core package
+if "core" in sys.modules:
+    _m = sys.modules["core"]
+    _f = getattr(_m, "__file__", "") or ""
+    if not _f or str((_LIB_ROOT / "core").resolve()).lower() not in str(Path(_f).resolve()).lower():
+        del sys.modules["core"]
 
 import cv2
 import numpy as np
