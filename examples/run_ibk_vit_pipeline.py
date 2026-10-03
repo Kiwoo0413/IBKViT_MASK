@@ -87,8 +87,8 @@ def main() -> None:
         if len(parts) >= 2:
             seed_points = [(parts[0], parts[1])]
 
-    print("Step 1: Tracking object with ViT/SAM...")
-    coarse_masks = vit.track_sam2_frames(frames, seed_points=seed_points)
+    print("Step 1: Tracking object with adaptive spatio-temporal tracker...")
+    coarse_masks = vit.track_video_frames(frames, seed_points=seed_points)
 
     print("Step 2: Pulling IBK transmission mattes and fusing pure-white core...")
     fused_mattes = []

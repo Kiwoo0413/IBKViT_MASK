@@ -4,7 +4,6 @@ Griptape Model Management Integration for VFX IBK & ViT Masking Toolkit.
 Handles relative-path workspace registration, model catalog synchronization,
 and automatic model downloading for:
   - hustvl/vitmatte-small-composition-1k (ViTMatte boundary matting)
-  - facebook/sam2.1-hiera-large (SAM 2.1 Spatio-temporal video object tracking)
 """
 
 import json
@@ -385,26 +384,5 @@ def resolve_model_weights_and_config(model_id: str) -> Tuple[Optional[str], Opti
     if not model_dir or not model_dir.exists():
         return None, None
 
-    # For SAM 2: check for .pt checkpoint and .yaml config
-    if "sam2" in model_id.lower():
-        pt_candidates = [
-            model_dir / "sam2.1_hiera_large.pt",
-            model_dir / "sam2_hiera_large.pt",
-            model_dir / "sam2.1_hiera_l.pt",
-        ]
-        yaml_candidates = [
-            model_dir / "sam2.1_hiera_l.yaml",
-            model_dir / "sam2_hiera_l.yaml",
-            model_dir / "configs" / "sam2.1" / "sam2.1_hiera_l.yaml",
-        ]
-        pt_path = next((str(p) for p in pt_candidates if p.exists()), None)
-        yaml_path = next((str(y) for y in yaml_candidates if y.exists()), None)
-
-        # If yaml is not directly in the snapshot, fallback to sam2 built-in config name
-        if yaml_path is None:
-            yaml_path = "configs/sam2.1/sam2.1_hiera_l.yaml"
-
-        return pt_path, yaml_path
-
-    # For ViTMatte: model_dir contains config.json, preprocessor_config.json, model.safetensors
+    # Model directory contains config.json, preprocessor_config.json, model.safetensors
     return str(model_dir), None

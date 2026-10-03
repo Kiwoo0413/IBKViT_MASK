@@ -1,7 +1,7 @@
 """
 nodes/vit_mask_extractor_node.py
 Node 03: ViT Mask Extractor Node for Griptape Nodes Desktop.
-Integrates SAM 2 spatio-temporal tracking and ViTMatte Vision Transformer matting.
+Integrates adaptive spatio-temporal tracking and ViTMatte Vision Transformer matting.
 """
 
 from __future__ import annotations
@@ -310,7 +310,7 @@ class ViTMaskExtractorNode(DataNode):
                 detected_init_mask = engine.detect_subject_coarse_mask(frames[0], screen_type=detected_screen)
 
         # 1. Spatio-temporal tracking
-        coarse_masks = engine.track_sam2_frames(
+        coarse_masks = engine.track_video_frames(
             frame_sequence=frames,
             seed_points=seed_points,
             box_coords=box_coords,

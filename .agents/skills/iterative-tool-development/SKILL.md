@@ -136,7 +136,7 @@ Host applications often maintain their own configuration stores, relative worksp
 - Register relative paths in host configs (e.g. `griptape_nodes_config.json`).
 
 #### 2. Model Management & Cache Synchronization
-- When integrating AI models (e.g., ViTMatte, SAM 2):
+- When integrating AI models (e.g., ViTMatte):
   1. Check workspace-relative `models/` directory first.
   2. Check Hugging Face hub cache via `scan_cache_dir()` or default snapshot directories.
   3. Trigger host native ModelManager or CLI download if missing.
@@ -144,13 +144,13 @@ Host applications often maintain their own configuration stores, relative worksp
 
 #### 3. PEP 668 & Bundled Python Package Installation
 - Host runtimes (like Griptape Desktop) often bundle an isolated Python managed by `uv` or marked as externally managed.
-- When installing supplementary packages (e.g. Meta SAM 2 from GitHub) into the host environment, invoke the host Python directly with `--break-system-packages`:
+- When installing supplementary packages into the host environment, invoke the host Python directly with `--break-system-packages`:
   ```powershell
-  & "<host_python_path>" -m pip install --break-system-packages git+https://github.com/facebookresearch/sam2.git
+  & "<host_python_path>" -m pip install --break-system-packages <package-name>
   ```
 
 #### 4. Resilient Fallbacks for Heavy AI Modules
-- If an optional AI module (like SAM 2 or specialized CUDA kernels) is not yet installed or compiled:
+- If an optional AI module or specialized CUDA kernels are not yet installed or compiled:
   - Do NOT crash the pipeline.
   - Automatically log an informational notice and fall back to a high-speed algorithmic equivalent (e.g., Adaptive ViT/Contour tracker or Guided Filter).
 

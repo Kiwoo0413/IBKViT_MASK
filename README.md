@@ -3,7 +3,7 @@
 > **VFX-grade Image Based Keying (IBK) & Vision Transformer (ViT) 4K Spatio-temporal Mask Extraction Custom Node Library for Griptape Nodes Desktop**  
 > **Version: `v2.3.0`** | **License: `Apache 2.0`** | **Tests: `33 / 33 Passed (100%)`**
 
-본 라이브러리는 영화/VFX 업계 표준 컴포지팅 기법인 IBK(Image Based Keyer: Nuke IBKColour & IBKGizmo)와 최신 딥러닝 ViT(Vision Transformer: SAM 2 & ViTMatte)를 융합하여, 머리카락 한 올, 모션 블러, 반투명 재질까지 완벽하게 추출하는 **4K UHD 비디오 알파 마스킹 전용 툴킷**입니다.
+본 라이브러리는 영화/VFX 업계 표준 컴포지팅 기법인 IBK(Image Based Keyer: Nuke IBKColour & IBKGizmo)와 최신 딥러닝 ViT(Vision Transformer: ViTMatte)를 융합하여, 머리카락 한 올, 모션 블러, 반투명 재질까지 완벽하게 추출하는 **4K UHD 비디오 알파 마스킹 전용 툴킷**입니다.
 
 
 ---
@@ -92,17 +92,10 @@ GPU 환경(CUDA)이 설정된 파이썬 환경에서 필수 패키지를 설치�
 pip install -r requirements.txt
 ```
 
-*(선택사항) Griptape 내장 Python에 SAM 2(facebook/sam2.1-hiera-large) 설치:*
-
-```powershell
-& "$env:LOCALAPPDATA\ai.griptape.nodes.desktop\current\resources\engine-bundle\python\python.exe" -m pip install --break-system-packages git+https://github.com/facebookresearch/sam2.git
-```
-
 ### 2. AI 모델 다운로드 (상대 경로 & Griptape 연동)
 
 라이브러리는 Griptape Model Management와 워크스페이스 상대 경로(`models/`)를 완벽 지원합니다:
 - **ViTMatte**: `hustvl/vitmatte-small-composition-1k` (서브픽셀 4K 엣지 분리)
-- **SAM 2.1**: `facebook/sam2.1-hiera-large` (시공간 비디오 객체 추적)
 
 **방법 A: 전용 스크립트로 다운로드**
 ```bash
@@ -125,8 +118,7 @@ python scripts/download_models.py --relative
   "libraries/IBKViT_MASK/griptape_nodes_library.json"
 ],
 "models_to_download": [
-  "hustvl/vitmatte-small-composition-1k",
-  "facebook/sam2.1-hiera-large"
+  "hustvl/vitmatte-small-composition-1k"
 ]
 ```
 
