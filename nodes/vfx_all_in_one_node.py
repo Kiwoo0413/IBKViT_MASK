@@ -148,7 +148,7 @@ class VFXKeyingViTAllInOneNode(DataNode):
             Parameter(
                 name="use_vitmatte_refinement",
                 type="bool",
-                default_value=True,
+                default_value=False,
                 tooltip="엣지 전이 영역(Unknown Zone)에 ViTMatte 신경망 서브픽셀 정밀 추론 적용 (True: 고품질 신경망-광학 하이브리드 모드, False: 초고속 60fps 순수 광학 융합 모드)",
                 display_name="Use ViTMatte Refinement",
                 allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
