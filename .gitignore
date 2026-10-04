@@ -52,12 +52,13 @@ generated_frames/
 composite/
 output/
 
-# IDE
+# IDE & Agent Configs
 .vscode/
 .idea/
 *.swp
+.agents/
 
 # Research & Private Documentation
 docs/keying_and_matting_research_comparison.md
 docs/paper_preparation_plan.md
-docs/*.md
+docs/*.md
