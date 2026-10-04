@@ -187,3 +187,26 @@ class TestMatteFusion:
         custom_target = str(tmp_path / "custom_exports")
         resolved_custom = VideoIO.resolve_output_dir(str(dummy_video), custom_output_dir=custom_target)
         assert Path(resolved_custom) == Path(custom_target).resolve()
+
+    def test_inject_fine_edge_detail(self):
+        engine = MatteFusionEngine(FusionConfig(restore_fine_edges=True, edge_restore_band_radius=15))
+        base = np.zeros((64, 64), dtype=np.float32)
+        base[20:44, 20:44] = 1.0  # Core
+
+        # Raw fine hair edge outside core that might have been lost
+        raw_edge = np.zeros((64, 64), dtype=np.float32)
+        raw_edge[15:20, 30:34] = 0.75  # Stray hair strand
+
+        restored = engine.inject_fine_edge_detail(
+            base_matte=base,
+            raw_edge_matte=raw_edge,
+            core_matte=base,
+            band_radius=15,
+        )
+
+        # Hair strand must be fully restored
+        assert np.all(restored[15:20, 30:34] == 0.75)
+        # Core remains solid 1.0
+        assert np.all(restored[20:44, 20:44] == 1.0)
+        # Far background remains strictly 0.0
+        assert np.all(restored[:5, :5] == 0.0)

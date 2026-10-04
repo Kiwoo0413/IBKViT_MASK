@@ -32,6 +32,8 @@ class FusionConfig:
     target_resolution: str = "4k"        # "4k" (3840x2160 UHD) or "native"
     auto_detect_polarity: bool = True    # Auto-detect if core/background are inverted and fix
     invert_matte: bool = False           # Manual invert override
+    restore_fine_edges: bool = True      # Edge Re-Injection: restore pure optical hair edges after filtering
+    edge_restore_band_radius: int = 80   # Safe zone radius around core to re-inject hair without background noise
 
 
 class MatteFusionEngine:
@@ -330,6 +332,51 @@ class MatteFusionEngine:
 
         return np.clip(m, 0.0, 1.0).astype(np.float32)
 
+    def inject_fine_edge_detail(
+        self,
+        base_matte: np.ndarray,
+        raw_edge_matte: np.ndarray,
+        core_matte: Optional[np.ndarray] = None,
+        band_radius: int = 80,
+    ) -> np.ndarray:
+        """
+        Edge Re-Injection: Restores ultra-fine hair strands and optical edge transparency
+        that may have been clipped by tight envelopes or softened by refinement filters.
+        Restricts injection to a safe zone (band_radius around core/subject) to guarantee zero far-background noise.
+        """
+        if raw_edge_matte is None or not self.config.restore_fine_edges:
+            return base_matte
+
+        e = raw_edge_matte.astype(np.float32)
+        if e.max() > 1.0:
+            e = e / 255.0
+
+        b = base_matte.astype(np.float32)
+        if b.max() > 1.0:
+            b = b / 255.0
+
+        bh, bw = b.shape[:2]
+        if e.shape[:2] != (bh, bw):
+            e = cv2.resize(e, (bw, bh), interpolation=cv2.INTER_LINEAR)
+
+        anchor = core_matte if core_matte is not None else (b > 0.5).astype(np.float32)
+        if anchor.shape[:2] != (bh, bw):
+            anchor = cv2.resize(anchor, (bw, bh), interpolation=cv2.INTER_NEAREST)
+
+        anchor_bin = (anchor > 0.2).astype(np.uint8)
+        if np.any(anchor_bin):
+            ksize = max(15, band_radius if band_radius % 2 == 1 else band_radius + 1)
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
+            safe_zone = cv2.dilate(anchor_bin, kernel)
+        else:
+            safe_zone = np.ones((bh, bw), dtype=np.uint8)
+
+        restored = b.copy()
+        mask = safe_zone > 0
+        restored[mask] = np.maximum(b[mask], e[mask])
+
+        return np.clip(restored, 0.0, 1.0).astype(np.float32)
+
     def apply_temporal_smoothing(
         self,
         current_matte: np.ndarray,
@@ -442,6 +489,21 @@ class MatteFusionEngine:
         # No aggressive temporal edge hacks are applied here to keep IBK edges natural!
         refined_raw = self.refine_matte(fused_raw_corr, rgb_guide=rgb_guide)
         refined_stab = self.refine_matte(fused_stab_corr, rgb_guide=rgb_guide)
+
+        # 3-B. Edge Re-Injection: Restore fine hair strands onto the refined base matte
+        if self.config.restore_fine_edges and edge_matte is not None:
+            refined_raw = self.inject_fine_edge_detail(
+                base_matte=refined_raw,
+                raw_edge_matte=edge_matte,
+                core_matte=raw_core_matte if raw_core_matte is not None else core_matte,
+                band_radius=self.config.edge_restore_band_radius,
+            )
+            refined_stab = self.inject_fine_edge_detail(
+                base_matte=refined_stab,
+                raw_edge_matte=edge_matte,
+                core_matte=core_matte,
+                band_radius=self.config.edge_restore_band_radius,
+            )
 
         # If envelope_matte was not supplied (legacy mode), apply EMA temporal smoothing on stabilized stream
         if envelope_matte is None:

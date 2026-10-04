@@ -377,10 +377,9 @@ class VFXKeyingViTAllInOneNode(DataNode):
                     enable_roi_crop=True,
                     screen_type=screen_type,
                 )
-                # Complementary Fusion in transition zone:
-                # ViTMatte provides the semantic boundary without background noise,
-                # while IBK preserves pristine optical light transmission on fine hair strands.
-                current_edge = np.clip(0.5 * ibk_res.alpha + 0.5 * vit_res.alpha, 0.0, 1.0)
+                # Non-destructive Max Blending in transition zone:
+                # Guarantees that neither ViTMatte's clean semantic boundary nor IBK's fine optical hair strands are diluted!
+                current_edge = np.maximum(ibk_res.alpha, vit_res.alpha)
 
             # C. Non-destructive Matte Fusion:
             # - Inner core is 100% pure white (solid, no holes, de-jittered by ViT)
