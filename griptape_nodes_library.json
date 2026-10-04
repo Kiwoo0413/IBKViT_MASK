@@ -1,15 +1,18 @@
 {
-  "name": "VFX IBK & ViT Masking Library",
+  "name": "CompMatte: VFX Compositing Matting Library",
   "library_schema_version": "0.7.0",
   "metadata": {
     "author": "KIWOO",
-    "description": "VFX-grade Image Based Keyer (IBK) and Vision Transformer (ViT) 4K Spatio-temporal Mask Extraction Toolkit with pure-white core and pure-black background",
-    "library_version": "2.3.0",
+    "description": "VFX compositing architecture-driven hybrid matting toolkit: 100% Solid White Core Matte, Optical & ViT Edge Matte, and Non-destructive Hair Detail Re-injection.",
+    "library_version": "3.0.0",
     "engine_version": "0.100.2",
     "tags": [
-      "Griptape",
+      "CompMatte",
       "VFX",
+      "Compositing",
       "Keying",
+      "CoreMatte",
+      "EdgeMatte",
       "IBK",
       "ViT",
       "VitMatte",
@@ -55,10 +58,10 @@
   },
   "categories": [
     {
-      "VFXMaskingKeying": {
-        "color": "border-emerald-500",
-        "title": "VFX Keying & ViT Masking",
-        "description": "Nodes for VFX-grade Image Based Keying (IBK) and ViT 4K Spatio-temporal Matting",
+      "CompMatte": {
+        "color": "border-cyan-500",
+        "title": "CompMatte (VFX Matting)",
+        "description": "Nodes for VFX Compositing Architecture: Core Matte, Edge Matte & ViT Refinement",
         "icon": "sparkles"
       }
     }
@@ -68,9 +71,9 @@
       "class_name": "VFXKeyingViTAllInOneNode",
       "file_path": "nodes/vfx_all_in_one_node.py",
       "metadata": {
-        "category": "VFXMaskingKeying",
-        "description": "Complete IBK Clean Plate, ViT Pure-White Core, Hair Keying, Polarity Auto-Correction, and Dual 4K UHD EXR/PNG Sequence Export (Stabilized + Raw)",
-        "display_name": "VFX IBK & ViT Keyer (All-in-One)",
+        "category": "CompMatte",
+        "description": "Complete VFX compositing-based matting: Core Matte (Pure-White), Optical & ViT Edge Matte, Non-destructive Hair Detail Re-injection, and Dual 4K EXR/PNG Sequences.",
+        "display_name": "CompMatte Keyer (All-in-One)",
         "icon": "sparkles",
         "declarations": [
           {
@@ -86,9 +89,9 @@
       "class_name": "IBKCleanPlateNode",
       "file_path": "nodes/ibk_clean_plate_node.py",
       "metadata": {
-        "category": "VFXMaskingKeying",
-        "description": "Node 01: Generate clean screen backing plate (IBKColour emulation)",
-        "display_name": "Node 01: IBK Clean Plate Generator",
+        "category": "CompMatte",
+        "description": "Node 01: Screen un-evening and backing plate generator (IBKColour compositing emulation)",
+        "display_name": "Node 01: CompMatte Clean Plate",
         "icon": "image"
       }
     },
@@ -96,9 +99,9 @@
       "class_name": "IBKKeyerNode",
       "file_path": "nodes/ibk_keyer_node.py",
       "metadata": {
-        "category": "VFXMaskingKeying",
-        "description": "Node 02: Pull fine transmission alpha matte with pure-black background and pure-white core (IBKGizmo)",
-        "display_name": "Node 02: IBK Keyer",
+        "category": "CompMatte",
+        "description": "Node 02: Optical transmission edge matte extraction for sub-pixel hair and motion blur (IBKGizmo)",
+        "display_name": "Node 02: CompMatte Edge Keyer",
         "icon": "scissors"
       }
     },
@@ -106,9 +109,9 @@
       "class_name": "ViTMaskExtractorNode",
       "file_path": "nodes/vit_mask_extractor_node.py",
       "metadata": {
-        "category": "VFXMaskingKeying",
-        "description": "Node 03: Vision Transformer (ViTMatte) object tracking, trimap, and sub-pixel matting",
-        "display_name": "Node 03: ViT Mask Extractor",
+        "category": "CompMatte",
+        "description": "Node 03: Vision Transformer (ViTMatte) deep learning edge matte inference on unknown transition zones",
+        "display_name": "Node 03: CompMatte ViT Edge Refiner",
         "icon": "target",
         "declarations": [
           {
@@ -124,9 +127,9 @@
       "class_name": "VFXMatteRefinerNode",
       "file_path": "nodes/vfx_matte_refiner_node.py",
       "metadata": {
-        "category": "VFXMaskingKeying",
-        "description": "Node 04: Fuse ViT pure-white core with IBK edge, automatic polarity correction, and dual output (jitter-stabilized + raw)",
-        "display_name": "Node 04: VFX Matte Refiner & Fusion",
+        "category": "CompMatte",
+        "description": "Node 04: Core Matte + Edge Matte compositing fusion, spatio-temporal de-jittering, and non-destructive fine edge detail re-injection",
+        "display_name": "Node 04: CompMatte Fusion & Stabilizer",
         "icon": "sliders"
       }
     },
@@ -134,9 +137,9 @@
       "class_name": "VFXMaskExportNode",
       "file_path": "nodes/vfx_mask_export_node.py",
       "metadata": {
-        "category": "VFXMaskingKeying",
-        "description": "Node 05: Export 4K UHD 32-bit float OpenEXR, 16-bit PNG, Premultiplied RGBA, and QA Red Overlay video",
-        "display_name": "Node 05: VFX Sequence Exporter",
+        "category": "CompMatte",
+        "description": "Node 05: Export 4K UHD 32-bit float OpenEXR, 16-bit PNG sequence, Premultiplied RGBA, and QA Red Overlay video",
+        "display_name": "Node 05: CompMatte Sequence Exporter",
         "icon": "film"
       }
     }

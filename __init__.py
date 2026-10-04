@@ -1,5 +1,5 @@
 """
-VFX IBK & ViT Masking Custom Nodes for Griptape Nodes Desktop.
+CompMatte: VFX Compositing-Grade Matting Custom Nodes for Griptape Nodes Desktop.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ _NODES_DIR = Path(__file__).resolve().parent / "nodes"
 
 def _load_node(file_name: str, class_name: str):
     node_file = _NODES_DIR / file_name
-    spec = importlib.util.spec_from_file_location(f"ibkvit_nodes_{node_file.stem}", str(node_file))
+    spec = importlib.util.spec_from_file_location(f"compmatte_nodes_{node_file.stem}", str(node_file))
     if spec is None or spec.loader is None:
         raise ImportError(f"Could not load node module from {node_file}")
     mod = importlib.util.module_from_spec(spec)
@@ -20,14 +20,31 @@ def _load_node(file_name: str, class_name: str):
     return getattr(mod, class_name)
 
 
-IBKCleanPlateNode = _load_node("ibk_clean_plate_node.py", "IBKCleanPlateNode")
-IBKKeyerNode = _load_node("ibk_keyer_node.py", "IBKKeyerNode")
-ViTMaskExtractorNode = _load_node("vit_mask_extractor_node.py", "ViTMaskExtractorNode")
-VFXMatteRefinerNode = _load_node("vfx_matte_refiner_node.py", "VFXMatteRefinerNode")
-VFXMaskExportNode = _load_node("vfx_mask_export_node.py", "VFXMaskExportNode")
-VFXKeyingViTAllInOneNode = _load_node("vfx_all_in_one_node.py", "VFXKeyingViTAllInOneNode")
+# Primary CompMatte Node Classes
+CompMatteCleanPlateNode = _load_node("ibk_clean_plate_node.py", "CompMatteCleanPlateNode")
+CompMatteKeyerNode = _load_node("ibk_keyer_node.py", "CompMatteKeyerNode")
+CompMatteViTEdgeNode = _load_node("vit_mask_extractor_node.py", "CompMatteViTEdgeNode")
+CompMatteRefinerNode = _load_node("vfx_matte_refiner_node.py", "CompMatteRefinerNode")
+CompMatteExportNode = _load_node("vfx_mask_export_node.py", "CompMatteExportNode")
+CompMatteAllInOneNode = _load_node("vfx_all_in_one_node.py", "CompMatteAllInOneNode")
+
+# Backward Compatibility Aliases
+IBKCleanPlateNode = CompMatteCleanPlateNode
+IBKKeyerNode = CompMatteKeyerNode
+ViTMaskExtractorNode = CompMatteViTEdgeNode
+VFXMatteRefinerNode = CompMatteRefinerNode
+VFXMaskExportNode = CompMatteExportNode
+VFXKeyingViTAllInOneNode = CompMatteAllInOneNode
 
 __all__ = [
+    # CompMatte Primary
+    "CompMatteCleanPlateNode",
+    "CompMatteKeyerNode",
+    "CompMatteViTEdgeNode",
+    "CompMatteRefinerNode",
+    "CompMatteExportNode",
+    "CompMatteAllInOneNode",
+    # Legacy Aliases
     "IBKCleanPlateNode",
     "IBKKeyerNode",
     "ViTMaskExtractorNode",

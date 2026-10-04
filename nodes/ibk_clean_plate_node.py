@@ -207,3 +207,10 @@ class IBKCleanPlateNode(DataNode):
         self.set_parameter_value("clean_plate_video", video_preview)
         self.set_parameter_value("frame_count", len(clean_frames))
         self.set_parameter_value("status", f"Generated {len(clean_frames)}/{total_video_frames} clean plate frames.")
+
+
+# Compositing Architecture alias
+CompMatteCleanPlateNode = IBKCleanPlateNode
+
+__all__ = ["IBKCleanPlateNode", "CompMatteCleanPlateNode"]
+

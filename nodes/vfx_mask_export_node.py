@@ -223,3 +223,10 @@ class VFXMaskExportNode(DataNode):
         self.set_parameter_value(
             "status", f"Successfully exported {len(written_files)} frames in {export_fmt.upper()} ({res_opt.upper()})."
         )
+
+
+# Compositing Architecture alias
+CompMatteExportNode = VFXMaskExportNode
+
+__all__ = ["VFXMaskExportNode", "CompMatteExportNode"]
+

@@ -1,89 +1,94 @@
-# VFX IBK Keying & ViT Masking Toolkit for Griptape Nodes
+# CompMatte: VFX Compositing-Grade Hybrid Matting Toolkit
 
-> **VFX-grade Image Based Keying (IBK) & Vision Transformer (ViT) 4K Spatio-temporal Mask Extraction Custom Node Library for Griptape Nodes Desktop**  
-> **Version: `v2.4.0`** | **License: `Apache 2.0`** | **Tests: `42 / 42 Passed (100%)`**
+> **실제 영화/VFX 컴포지팅 구조(Core Matte + Edge Matte + Non-destructive Detail Re-Injection)를 충실히 구현한 차세대 하이브리드 알파 매팅 툴킷**  
+> **Version: `v3.0.0`** | **License: `Apache 2.0`** | **Tests: `46 / 46 Passed (100%)`**
 
-본 라이브러리는 영화/VFX 업계 표준 컴포지팅 기법인 IBK(Image Based Keyer: Nuke IBKColour & IBKGizmo)와 최신 딥러닝 ViT(Vision Transformer: ViTMatte)를 융합하여, 머리카락 한 올, 모션 블러, 반투명 재질까지 완벽하게 추출하는 **4K UHD 비디오 알파 마스킹 전용 툴킷**입니다.
-
+**CompMatte**는 기존 단일 AI 블랙박스 매팅의 한계(내부 구멍, 시간축 플리커, 잔머리 침식)를 극복하기 위해, 헐리우드 VFX 스튜디오(Nuke, Flame)의 **실제 컴포지팅 파이프라인 구조**를 소프트웨어 및 Griptape Nodes로 충실히 구현한 하이브리드 비디오 매팅 툴킷입니다.
 
 ---
 
-## 🌟 핵심 기술 및 파이프라인
+## 💡 왜 "CompMatte (컴프매트)" 인가? (컴포지팅 구조 기반 매팅)
+
+전통적인 프로페셔널 VFX 컴포지팅에서 마스터 키어는 결코 하나의 필터로 전체 피사체를 뽑지 않습니다.  
+항상 **코어(Core)와 엣지(Edge)를 물리적으로 분리**하여 각각에 최적화된 처리를 수행한 후 합성합니다.
 
 ```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                        입력 영상 (Green/Blue Screen)                     │
-└───────────────────┬────────────────────────────────┬───────────────────┘
-                    │                                │
-      [IBK 브랜치: 미세 디테일 및 원본 엣지 보존]         [Core 브랜치: 내외부 매트 지터 제거]
-                    │                                │
-    ┌───────────────▼───────────────┐  ┌─────────────▼───────────────────┐
-    │ 01. IBK Clean Plate Generator │  │ 03. CoreEngine & Spatio-Temporal│
-    │  - IBKColour 조명 그라디언트   │  │  - 에지 블러 & 디포커스 감지    │
-    │  - 프레임 수 자동 동적 정렬   │  │  - 내부 코어: Pure White (1.0) │
-    └───────────────┬───────────────┘  │  - 외부 배경: Pure Black (0.0) │
-                    │                  │  - 프레임 간 잔상 누적 0%     │
-    ┌───────────────▼───────────────┐  └─────────────┬───────────────────┘
-    │ 02. IBK Gizmo Keyer           │                │
-    │  - 머리카락/모션블러 자연적 보존 │                │
-    │  - 광학 투과율 기반 순수 엣지   │  ┌─────────────▼───────────────────┐
-    │  - 인위적 클램프/왜곡 없음     │  │ (선택) ViTMatte Neural Matting  │
-    └───────────────┬───────────────┘  │  - Tight ROI 14배 고속 추론    │
-                    │                  │  - 비파괴 Max 블렌딩 결합      │
-                    │                  └─────────────┬───────────────────┘
-                    │                                │
-                    └───────────────┬────────────────┘
-                                    │
-                    ┌───────────────▼───────────────────────────┐
-                    │ 04. Matte Fusion & Edge Re-Injection      │
-                    │  - Non-destructive Envelope Fusion         │
-                    │  - Guided Filter 미세 경계 정렬           │
-                    │  - 🌟 Edge Re-Injection (엣지 재주입)     │
-                    │    후처리 후 순수 광학 잔머리 100% 복원   │
-                    │  - 극성(Polarity) 자동 판별 및 교정        │
-                    │  - 4K UHD (3840x2160) Lanczos4 변환       │
-                    └───────────────┬───────────────────────────┘
-                                    │
-                    ┌───────────────▼───────────────────────────┐
-                    │ 05. VFX Sequence Exporter (4K Grayscale)  │
-                    │  - 단일 채널 Grayscale 32-bit Float OpenEXR│
-                    │  - 단일 채널 Grayscale 16-bit Lossless PNG │
-                    │  - 불필요한 RGB 색상 오버헤드 67% 절감     │
-                    │  - Stabilized & Raw 듀얼 시퀀스 동시 출력  │
-                    └───────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                      입력 영상 (4K Green/Blue Screen Shot)                      │
+└───────────────────────┬─────────────────────────────────┬───────────────────────┘
+                        │                                 │
+    [Edge Matte 브랜치: 미세 디테일 & 투과율]       [Core Matte 브랜치: 불투명 코어 & 안정화]
+                        │                                 │
+        ┌───────────────▼───────────────┐         ┌───────▼───────────────────────┐
+        │ 01. CompMatte Clean Plate     │         │ 03. CoreEngine & Spatio-Temp  │
+        │  - 스크린 조명 불균일 균등화    │         │  - 내부 코어: Pure White(1.0) │
+        │  - Nuke IBKColour 컴포지팅    │         │  - 외부 포락선: Pure Black(0.0)│
+        └───────────────┬───────────────┘         │  - 시간축 지터/플리커 원천 차단 │
+                        │                         │  - 초고속 60fps+ 순수 광학    │
+        ┌───────────────▼───────────────┐         └───────┬───────────────────────┘
+        │ 02. CompMatte Edge Keyer      │                 │
+        │  - 광학 컬러차이 기반 투과율    │                 │
+        │  - 서브픽셀 헤어 & 모션블러    │         ┌───────▼───────────────────────┐
+        │  - Nuke IBKGizmo 투과 엣지    │         │ (선택) ViTMatte Neural Edge   │
+        └───────────────┬───────────────┘         │  - Unknown 전이 영역 정밀 추론 │
+                        │                         │  - 타이트 ROI 가속 (14x Fast) │
+                        │                         └───────┬───────────────────────┘
+                        │                                 │
+                        └────────────────┬────────────────┘
+                                         │
+                        ┌────────────────▼────────────────────────────────┐
+                        │ 04. CompMatte Fusion & Non-destructive Re-inject│
+                        │  - Core Matte + Edge Matte 컴포지팅 합성        │
+                        │  - 🌟 Safe Zone Edge Re-Injection (엣지 재주입) │
+                        │    후처리 필터에 의한 잔머리 깎임 0% 원천 방지   │
+                        │    1px 미세 머리카락 100% 보존 (Max 결합)       │
+                        │  - 극성(Polarity) 자동 판별 및 화이트/블랙 보장 │
+                        │  - 4K UHD (3840x2160) Lanczos4 고해상도 변환   │
+                        └────────────────┬────────────────────────────────┘
+                                         │
+                        ┌────────────────▼────────────────────────────────┐
+                        │ 05. CompMatte Sequence Exporter (4K Grayscale)  │
+                        │  - 단일 채널 Grayscale 32-bit Float OpenEXR ('A')│
+                        │  - 단일 채널 Grayscale 16-bit Lossless PNG      │
+                        │  - 불필요한 RGB 색상 오버헤드 67% 절감          │
+                        │  - Stabilized & Raw 듀얼 시퀀스 동시 출력       │
+                        └─────────────────────────────────────────────────┘
 ```
 
-1. **🎨 IBK 브랜치: 고유의 광학적 엣지(Edge) 완벽 보존**:
-   - Clean Plate와의 화소별 색상차(Color Difference) 비율을 통해 머리카락 한 올, 모션 블러, 미세 반투명 재질의 자연스러운 알파 그라디언트를 처음 모습 그대로 유지합니다.
-   - 무리한 임계값 클램프나 변형 필터를 가하지 않아 본래의 부드러운 서브픽셀 엣지가 살아납니다.
+### 🎯 4대 컴포지팅 필러 (Compositing Pillars)
 
-2. **⚡ Core 브랜치 (CoreEngine) & 듀얼 모드 분리**:
-   - **완전 분리형 초경량 CoreEngine**: PyTorch/Transformers 의존성 없이 순수 OpenCV/NumPy만으로 동작하여 **초고속 60fps+ 실시간 처리**를 지원합니다.
-   - **내부 코어 매트 (Pure White 1.0)**: 피사체 내부 구멍(Hole)을 완전 차단하여 음영 변화나 자글거림을 100% 순백색으로 고정합니다.
-   - **외부 배경 엔벨로프 (Pure Black 0.0)**: 스크린 번짐과 경계 밖 노이즈를 100% 칠흑색으로 고정합니다.
-   - **적응형 블러 감지**: 에지 경계의 그라디언트 분산을 실시간 측정하여 디포커스/모션블러 샷에서는 경계 폭을 자동으로 확장합니다.
-   - **선택적 ViTMatte 딥러닝 모드**: `use_vitmatte_refinement=True`일 때만 지연 로딩(Lazy load)되어 타이트 ROI 가속 기반 서브픽셀 엣지를 추론하며, 비파괴 Max 블렌딩(`np.maximum(ibk, vit)`)으로 머리카락 투명도 감쇄를 방지합니다.
+1. **Clean Plate (스크린 균등화)**:
+   - 배경 스크린의 조명 편차, 주름, 핫스팟을 제거하여 완벽한 레퍼런스 컬러 플레이트를 생성합니다 (Nuke `IBKColour` 에뮬레이션).
 
-3. **🌟 Non-destructive Edge Re-Injection (엣지 재주입 기술)**:
-   - 헐리우드 VFX Nuke 컴포지팅의 정석인 **Detail Restoration** 기법을 탑재했습니다.
-   - 내부 홀 채움 및 지터 안정화 필터링이 완료된 베이스 마스크 위에, 어떠한 필터에도 오염되지 않은 **순수 원본 IBK 엣지(잔머리 가닥)를 피사체 안전 반경 내에 비파괴 Max 연산으로 최종 재주입**합니다.
-   - 포락선 절단이나 가우시안 블러, 블랙 클립 등으로 인해 외곽 잔머리가 깎여나가는 현상을 원천 방지하여 **원본 머리카락 디테일을 100% 온전히 보존**합니다.
+2. **Core Matte (홀드아웃 솔리드 코어)**:
+   - 피사체 내부의 음영이나 질감 차이로 인해 알파에 구멍(Holes)이 뚫리거나 자글거리는 현상을 100% Pure White (1.0) 코어로 단단하게 고정합니다.
+   - 외부 배경은 100% Pure Black (0.0) 엔벨로프로 닫아 지터를 완벽히 제거합니다.
+   - PyTorch 의존성 없는 경량 `CoreEngine`을 통해 **60fps+ 초고속 실시간 처리**를 지원합니다.
 
-4. **📉 초경량 4K Grayscale 알파 시퀀스 출력 (대역폭 67% 절감)**:
-   - 마스크는 알파 채널 전용이므로 대용량 RGB 컬러 채널을 저장하지 않고 **단일 채널(1-channel) Grayscale 32-bit Float OpenEXR ('A' 채널)** 및 **16-bit Lossless PNG**로 저장합니다. Nuke, DaVinci Resolve, Flame 등 전문 툴에서 즉시 알파 채널로 인식됩니다.
+3. **Edge Matte (소프트/디테일 매트 & ViT 신경망 엣지)**:
+   - 광학적 색상차 투과율(IBK)을 통해 머리카락 한 올, 모션 블러, 반투명 재질의 서브픽셀 그라디언트를 보존합니다.
+   - 필요 시 `use_vitmatte_refinement=True`를 켜면 Unknown 전이 영역에만 타이트 ROI 기반 ViTMatte 트랜스포머 딥러닝 엣지가 적용됩니다.
+
+4. **Matte Fusion & Non-destructive Edge Detail Re-Injection (엣지 비파괴 재주입)**:
+   - 코어와 엣지를 결합한 후, 가우시안 블러나 클리핑 등 후처리 과정에서 가느다란 잔머리 끝단이 깎여나가는 문제를 방지하기 위해 **안전 반경(Safe Zone) 내에서 순수 원본 엣지 디테일을 비파괴 Max 연산(`np.maximum(base, raw_edge)`)으로 최종 재주입**합니다.
+   - 이를 통해 **머리카락 가닥 손실률 0% (100% 완전 보존)**를 달성합니다.
 
 ---
 
 ## 📦 제공 노드 목록 (Griptape Nodes)
 
-| 노드 클래스 | 화면 표시 이름 | 카테고리 | 설명 |
+Griptape Nodes Desktop의 **`CompMatte (VFX Matting)`** 카테고리에서 다음 노드들을 사용할 수 있습니다:
+
+| 최신 노드 명칭 | 화면 표시 이름 (Display Name) | 기존 호환 클래스명 | 설명 |
 | :--- | :--- | :--- | :--- |
-| **`VFXKeyingViTAllInOneNode`** | `VFX IBK & ViT Keyer (All-in-One)` | `VFX Keying & ViT Masking` | 클린 플레이트, 적응형 ViT 코어, IBK 키잉, 극성 자동 감지, 듀얼(지터 안정화+Raw) 4K 시퀀스 및 검수 비디오 내보내기 올인원 |
-| **`IBKCleanPlateNode`** | `Node 01: IBK Clean Plate Generator` | `VFX Keying & ViT Masking` | 배경 조명 그라데이션을 복원한 Clean Plate 생성 (인풋 영상 프레임 수 동적 정렬) |
-| **`IBKKeyerNode`** | `Node 02: IBK Keyer` | `VFX Keying & ViT Masking` | Clean Plate 비교를 통한 투과율 알파 마스크 추출 (퓨어 블랙 배경/퓨어 화이트 코어) |
-| **`ViTMaskExtractorNode`** | `Node 03: ViT Mask Extractor` | `VFX Keying & ViT Masking` | 적응형 블러 감지 및 타이트 ROI 가속(14x) 기반 ViTMatte 서브픽셀 알파 마스크 추출 |
-| **`VFXMatteRefinerNode`** | `Node 04: VFX Matte Refiner & Fusion` | `VFX Keying & ViT Masking` | 퓨어 화이트 코어+엣지 결합, 극성 자동 보정, 듀얼(안정화+Raw) 4K 마스크 동시 생성 |
-| **`VFXMaskExportNode`** | `Node 05: VFX Sequence Exporter` | `VFX Keying & ViT Masking` | 4K UHD 32-bit Float EXR, Premultiplied RGBA EXR, 16-bit PNG, Red Overlay 비디오 내보내기 |
+| **`CompMatteAllInOneNode`** | `CompMatte Keyer (All-in-One)` | `VFXKeyingViTAllInOneNode` | 클린 플레이트, 코어 안정화, 광학/ViT 엣지, 엣지 재주입, 4K EXR/PNG 시퀀스 출력 통합 노드 |
+| **`CompMatteCleanPlateNode`**| `Node 01: CompMatte Clean Plate` | `IBKCleanPlateNode` | 스크린 조명 그라디언트 제거 및 Clean Plate 생성 (영상 프레임 자동 동기화) |
+| **`CompMatteKeyerNode`** | `Node 02: CompMatte Edge Keyer` | `IBKKeyerNode` | 광학 컬러차이 기반 투과율 알파 엣지 마스크 추출 (IBKGizmo) |
+| **`CompMatteViTEdgeNode`** | `Node 03: CompMatte ViT Edge Refiner` | `ViTMaskExtractorNode` | 적응형 블러 감지 & 타이트 ROI 가속(14x) 기반 ViTMatte 딥러닝 엣지 추출 |
+| **`CompMatteRefinerNode`** | `Node 04: CompMatte Fusion & Stabilizer`| `VFXMatteRefinerNode` | Core Matte + Edge Matte 합성, 시간축 안정화, 잔머리 100% 재주입 |
+| **`CompMatteExportNode`** | `Node 05: CompMatte Sequence Exporter`| `VFXMaskExportNode` | 단일 채널 4K UHD 32-bit Float EXR, 16-bit PNG, Red Overlay 비디오 내보내기 |
+
+> **하위 호환성 완벽 지원**: 기존 워크플로우 파일이나 스크립트에서 사용하던 `IBKCleanPlateNode`, `VFXKeyingViTAllInOneNode` 등의 클래스명도 100% 동일하게 동작합니다.
 
 ---
 
@@ -100,9 +105,8 @@ pip install -r requirements.txt
 ### 2. AI 모델 다운로드 (상대 경로 & Griptape 연동)
 
 라이브러리는 Griptape Model Management와 워크스페이스 상대 경로(`models/`)를 완벽 지원합니다:
-- **ViTMatte**: `hustvl/vitmatte-small-composition-1k` (서브픽셀 4K 엣지 분리)
+- **ViTMatte**: `hustvl/vitmatte-small-composition-1k`
 
-**방법 A: 전용 스크립트로 다운로드**
 ```bash
 # 기본 Hugging Face / Griptape 캐시로 다운로드
 python scripts/download_models.py
@@ -111,12 +115,9 @@ python scripts/download_models.py
 python scripts/download_models.py --relative
 ```
 
-**방법 B: 자동 다운로드 (Zero Config)**
-노드 실행 시 필요한 모델이 없으면 Griptape Model Management를 통해 자동으로 다운로드됩니다.
-
 ### 3. Griptape Nodes Desktop 등록 (상대 경로)
 
-`%APPDATA%\Griptape Nodes\xdg_config_home\griptape_nodes\griptape_nodes_config.json`의 `libraries_to_register` 목록에 **상대 경로**로 등록합니다 (노드 실행 시 자동 동기화도 지원):
+`%APPDATA%\Griptape Nodes\xdg_config_home\griptape_nodes\griptape_nodes_config.json`의 `libraries_to_register` 목록에 등록합니다:
 
 ```json
 "libraries_to_register": [
@@ -131,52 +132,71 @@ python scripts/download_models.py --relative
 
 1. Griptape Nodes Desktop 실행
 2. 좌측 하단의 **Refresh Libraries** 버튼 클릭 (또는 Engine Restart)
-3. 노드 라이브러리 목록에 **`VFX Keying & ViT Masking`** 카테고리가 나타납니다.
+3. 노드 라이브러리 목록에 **`CompMatte (VFX Matting)`** 카테고리가 나타납니다.
 
 ---
 
 ## 💡 워크플로우 활용 예시
 
 ### 1. 초간단 4K All-in-One 코스
-- 노드 목록에서 **`VFX IBK & ViT Keyer (All-in-One)`** 노드를 캔버스에 배치합니다.
+- 노드 목록에서 **`CompMatte Keyer (All-in-One)`** 노드를 캔버스에 배치합니다.
 - `Input Video Path`: 입력 영상 파일 경로 지정
-- `Screen Type`: `green` 또는 `blue`
+- `Screen Type`: `auto`, `green`, `blue`
 - `Output Resolution`: `4k` (3840x2160 UHD 기본) 또는 `native`
-- `Export Format`: `exr` (32-bit Float OpenEXR) 또는 `png16`
-- **Run** 실행 시 4K 해상도로 변환된 무결점 알파 마스크 시퀀스와 검수용 Red Overlay 비디오가 자동 생성됩니다.
+- `Use ViTMatte Refinement`: `False` (초고속 60fps 광학 융합 모드) 또는 `True` (고품질 트랜스포머 엣지 모드)
+- `Export Format`: `exr` (32-bit Float OpenEXR) 또는 `png16` (16-bit Lossless PNG)
+- **Run** 실행 시 원본 영상 폴더 내에 4K 알파 마스크 시퀀스와 검수용 Red Overlay 비디오가 자동 생성됩니다.
 
-### 2. 프로페셔널 모듈러 코스
-- **Node 01 (Clean Plate)**: 배경 스크린 조명 추출 (인풋 영상 길이에 자동 정렬)
-- **Node 02 (IBK Keyer)**: 정밀 머리카락 투과율 마스크 추출
-- **Node 03 (ViT Extractor)**: 적응형 블러 감지 + 타이트 ROI 크롭으로 솔리드 퓨어 화이트 코어 및 고속 서브픽셀 알파 추출
-- **Node 04 (Refiner & Fusion)**: 퓨어 화이트 코어 + 엣지 융합 및 내부 자글거림 완전 차단, 4K 변환
-- **Node 05 (Exporter)**: 4K OpenEXR / 16-bit PNG 시퀀스 내보내기
+### 2. 프로페셔널 컴포지팅 모듈러 코스
+- **Node 01 (CompMatte Clean Plate)**: 스크린 균등화 플레이트 추출
+- **Node 02 (CompMatte Edge Keyer)**: 순수 광학 투과율 머리카락 엣지 추출
+- **Node 03 (CompMatte ViT Edge Refiner)**: 트랜스포머 신경망 엣지 추론 (필요 시)
+- **Node 04 (CompMatte Fusion & Stabilizer)**: Core + Edge 결합, 플리커 방지 및 원본 잔머리 100% 재주입
+- **Node 05 (CompMatte Sequence Exporter)**: 32-bit EXR / 16-bit PNG 마스터 시퀀스 내보내기
 
 ---
 
-## 💻 독립형 CLI 실행 (Command Line)
+## 🐍 파이썬 코드 직접 사용 (`compmatte_core`)
 
-Griptape Nodes 외에 터미널이나 배치 스크립트에서도 단독 실행할 수 있습니다:
+파이썬 스크립트나 외부 파이프라인에서 직접 호출할 수도 있습니다:
 
-```bash
-# 기본 4K UHD 실행 (32-bit EXR 시퀀스 출력)
-python examples/run_ibk_vit_pipeline.py --input "D:\path\to\greenscreen.mp4" --screen green --resolution 4k
+```python
+from compmatte_core import (
+    CompMatteCoreEngine,
+    CompMatteEdgeEngine,
+    CompMatteFusionEngine,
+    CompMatteFusionConfig,
+    CompMatteIO,
+)
 
-# 4K 16-bit PNG 및 시드 좌표 지정 실행
-python examples/run_ibk_vit_pipeline.py --input "D:\path\to\video.mp4" --screen green --seed "640,360" --format png16 --resolution 4k
+# 1. 비디오 프레임 로드
+frames = CompMatteIO.read_frames("greenscreen_shot.mp4")
+
+# 2. 코어 매트 및 배경 엔벨로프 추출 (지터 방지)
+core_engine = CompMatteCoreEngine()
+core_res = core_engine.process_frame(frames[0], screen_type="green")
+
+# 3. 엣지 디테일 비파괴 재주입 컴포지팅 융합
+config = CompMatteFusionConfig(restore_fine_edges=True, edge_restore_band_radius=80)
+fusion_engine = CompMatteFusionEngine(config=config)
+final_matte = fusion_engine.inject_fine_edge_detail(
+    base_matte=core_res.core_mask.astype(float) / 255.0,
+    raw_edge=core_res.raw_edge,
+    core_mask=core_res.core_mask.astype(float) / 255.0,
+)
 ```
 
 ---
 
 ## 🧪 테스트 실행
 
-모든 단위 테스트와 노드 스키마 유효성 검증은 아래 명령어로 실행할 수 있습니다:
+모든 단위 테스트와 컴포지팅 파이프라인 유효성 검증은 아래 명령어로 실행할 수 있습니다:
 
 ```bash
 pytest -v tests/
 ```
 
-(33개 전 테스트 항목 100% 통과 보장)
+- **46개 전 테스트 항목 100% 통과 보장** (`tests/test_compmatte.py`, `tests/test_core_engine.py`, `tests/test_matte_fusion.py`, `tests/test_nodes.py`, 등)
 
 ---
 

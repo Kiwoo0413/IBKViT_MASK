@@ -455,3 +455,10 @@ class VFXKeyingViTAllInOneNode(DataNode):
             "status",
             f"Completed: {num_frames}/{total_frames} frames ({res_display} @ {fps:.2f}fps, Screen: {screen_type}) in {base_out_dir}",
         )
+
+
+# Compositing Architecture alias
+CompMatteAllInOneNode = VFXKeyingViTAllInOneNode
+
+__all__ = ["VFXKeyingViTAllInOneNode", "CompMatteAllInOneNode"]
+

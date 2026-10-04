@@ -359,3 +359,10 @@ class ViTMaskExtractorNode(DataNode):
         self.set_parameter_value("preview_video_path", preview_video)
         total_video_frames = info.get("frame_count", len(frames))
         self.set_parameter_value("status", f"Extracted ViT masks for {len(frames)}/{total_video_frames} frames.")
+
+
+# Compositing Architecture alias
+CompMatteViTEdgeNode = ViTMaskExtractorNode
+
+__all__ = ["ViTMaskExtractorNode", "CompMatteViTEdgeNode"]
+

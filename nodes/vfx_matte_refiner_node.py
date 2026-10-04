@@ -333,3 +333,10 @@ class VFXMatteRefinerNode(DataNode):
         total_video_frames = VideoIO.get_video_info(input_video)["frame_count"] if input_video and Path(input_video).exists() else len(stab_mattes)
         self.set_parameter_value("frame_count", len(stab_mattes))
         self.set_parameter_value("status", f"Generated {len(stab_mattes)}/{total_video_frames} frames (Stabilized + Raw) in {base_out_dir}")
+
+
+# Compositing Architecture alias
+CompMatteRefinerNode = VFXMatteRefinerNode
+
+__all__ = ["VFXMatteRefinerNode", "CompMatteRefinerNode"]
+

@@ -290,3 +290,10 @@ class IBKKeyerNode(DataNode):
         self.set_parameter_value("matte_preview_video", matte_video)
         self.set_parameter_value("frame_count", len(mattes))
         self.set_parameter_value("status", f"Keyed {len(mattes)} frames successfully in {res_opt.upper()}.")
+
+
+# Compositing Architecture alias
+CompMatteKeyerNode = IBKKeyerNode
+
+__all__ = ["IBKKeyerNode", "CompMatteKeyerNode"]
+
