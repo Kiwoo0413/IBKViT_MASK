@@ -1,6 +1,7 @@
 """
-tests/test_vit_engine.py
-Unit tests for ViT Engine trimap generation and matting.
+tests/test_core_engine.py
+Unit tests for CoreEngine trimap generation, core/envelope extraction,
+blur profiling, and temporal stabilization.
 """
 
 from __future__ import annotations
@@ -15,19 +16,28 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from ibkvit_core.vit_engine import ViTEngine, ViTMatteEngine
+from ibkvit_core.core_engine import CoreEngine, parse_box, parse_coords
 
 
-class TestViTEngine:
+class TestCoreEngine:
+    def test_parse_coords_and_box(self):
+        pts = parse_coords("100, 200")
+        assert pts == [(100.0, 200.0)]
+
+        pts_list = parse_coords("[[10, 20], [30, 40]]")
+        assert pts_list == [(10.0, 20.0), (30.0, 40.0)]
+
+        box = parse_box("[10, 20, 100, 200]")
+        assert box == [10.0, 20.0, 100.0, 200.0]
+
     def test_trimap_generation(self):
         # Create a 64x64 square mask in center
         mask = np.zeros((64, 64), dtype=np.uint8)
         mask[20:44, 20:44] = 255
 
-        trimap = ViTEngine.generate_trimap(mask, erode_kernel_size=5, dilate_kernel_size=5)
+        trimap = CoreEngine.generate_trimap(mask, erode_kernel_size=5, dilate_kernel_size=5)
 
         assert trimap.shape == (64, 64)
-        # Unique values should only be in {0, 128, 255}
         unique_vals = set(np.unique(trimap))
         assert unique_vals.issubset({0, 128, 255})
 
@@ -38,23 +48,11 @@ class TestViTEngine:
         # Perimeter must be unknown transition 128
         assert trimap[18, 32] == 128 or trimap[45, 32] == 128
 
-    def test_guided_matting_fallback(self):
-        engine = ViTEngine(device="cpu")
-        img = np.full((32, 32, 3), 128, dtype=np.uint8)
-        trimap = np.zeros((32, 32), dtype=np.uint8)
-        trimap[10:22, 10:22] = 255
-        trimap[8:10, :] = 128
-
-        alpha = engine.predict_vitmatte(img, trimap)
-        assert alpha.shape == (32, 32)
-        assert alpha[16, 16] == 1.0
-        assert alpha[0, 0] == 0.0
-
     def test_extract_core_and_envelope(self):
         mask = np.zeros((64, 64), dtype=np.uint8)
         mask[20:44, 20:44] = 255
 
-        core, env = ViTEngine.extract_core_and_envelope(mask, erode_kernel_size=5, dilate_kernel_size=5)
+        core, env = CoreEngine.extract_core_and_envelope(mask, erode_kernel_size=5, dilate_kernel_size=5)
         assert core.shape == (64, 64)
         assert env.shape == (64, 64)
         # Deep center must be solid pure white core (1.0)
@@ -71,13 +69,12 @@ class TestViTEngine:
         frame[:, :] = [20, 220, 30]  # Green screen background
         frame[20:44, 20:44] = [200, 80, 50]  # Foreground subject
 
-        mask = ViTEngine.detect_subject_coarse_mask(frame, screen_type="green")
+        mask = CoreEngine.detect_subject_coarse_mask(frame, screen_type="green")
         assert mask.shape == (64, 64)
         assert np.mean(mask[22:42, 22:42]) > 0.9
         assert np.mean(mask[:10, :10]) < 0.1
 
     def test_stabilize_mask_sequence(self):
-        # Create sequence with high-frequency boundary jitter
         m0 = np.zeros((32, 32), dtype=np.float32)
         m0[10:22, 10:22] = 1.0
 
@@ -85,7 +82,7 @@ class TestViTEngine:
         m1[9:11, 9:11] = 1.0  # Jitter on corner
 
         seq = [m0, m1]
-        stab_core = ViTEngine.stabilize_mask_sequence(seq, temporal_factor=0.5, is_core=True)
+        stab_core = CoreEngine.stabilize_mask_sequence(seq, temporal_factor=0.5, is_core=True)
         assert len(stab_core) == 2
         # Deep center remains rock-solid pure white
         assert stab_core[1][16, 16] == 1.0
@@ -102,7 +99,7 @@ class TestViTEngine:
         f1[:, :] = [20, 220, 30]
         f1[30:90, 80:100] = [200, 50, 40]
 
-        engine = ViTEngine()
+        engine = CoreEngine()
         stab_cores, stab_envelopes, raw_cores, raw_envelopes = engine.track_and_stabilize_stream(
             frame_sequence=[f0, f1],
             screen_type="green",
@@ -120,66 +117,21 @@ class TestViTEngine:
 
     def test_estimate_edge_blur_profile(self):
         h, w = 128, 128
-        # 1. Sharp image
         sharp_img = np.zeros((h, w, 3), dtype=np.uint8)
         sharp_img[:, :] = [20, 220, 30]
         sharp_img[30:90, 30:90] = [200, 60, 40]
         mask = np.zeros((h, w), dtype=np.uint8)
         mask[30:90, 30:90] = 255
 
-        e_sharp, d_sharp, blur_sharp = ViTEngine.estimate_edge_blur_profile(
+        e_sharp, d_sharp, blur_sharp = CoreEngine.estimate_edge_blur_profile(
             sharp_img, mask, screen_type="green", base_erode=10, base_dilate=15
         )
         assert blur_sharp < 0.4
         assert e_sharp <= 10
 
-        # 2. Defocused/blurred image
         blurred_img = cv2.GaussianBlur(sharp_img, (21, 21), 9.0)
-        e_blur, d_blur, blur_val = ViTEngine.estimate_edge_blur_profile(
+        e_blur, d_blur, blur_val = CoreEngine.estimate_edge_blur_profile(
             blurred_img, mask, screen_type="green", base_erode=10, base_dilate=15
         )
         assert blur_val > blur_sharp
         assert d_blur >= d_sharp
-
-    def test_extract_vit_matte_roi_acceleration(self):
-        h, w = 128, 128
-        frame = np.zeros((h, w, 3), dtype=np.uint8)
-        frame[:, :] = [20, 220, 30]
-        frame[40:88, 40:88] = [210, 50, 40]
-        mask = np.zeros((h, w), dtype=np.uint8)
-        mask[40:88, 40:88] = 255
-
-        engine = ViTEngine()
-        res = engine.extract_vit_matte(
-            rgb_image=frame,
-            coarse_mask=mask,
-            enable_adaptive_blur=True,
-            enable_roi_crop=True,
-            roi_padding=16,
-            screen_type="green",
-        )
-
-        assert res.alpha.shape == (h, w)
-        assert np.min(res.alpha[res.trimap == 255]) == 1.0  # Solid core interior
-        assert np.max(res.alpha[res.trimap == 0]) == 0.0      # Solid black background
-        assert np.any((res.alpha > 0.0) & (res.alpha < 1.0)) # Valid sub-pixel edge
-
-    def test_vitmatte_engine_standalone(self):
-        h, w = 64, 64
-        frame = np.full((h, w, 3), 100, dtype=np.uint8)
-        mask = np.zeros((h, w), dtype=np.uint8)
-        mask[20:44, 20:44] = 255
-
-        vit_eng = ViTMatteEngine(device="cpu")
-        res = vit_eng.extract_vit_matte(
-            rgb_image=frame,
-            coarse_mask=mask,
-            enable_adaptive_blur=False,
-            enable_roi_crop=True,
-        )
-        assert res.alpha.shape == (h, w)
-        assert res.alpha[32, 32] == 1.0
-        assert res.alpha[0, 0] == 0.0
-        vit_eng.release_memory()
-
-

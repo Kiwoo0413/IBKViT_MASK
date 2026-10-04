@@ -41,14 +41,16 @@ from ibkvit_core.griptape_compat import DataNode, Parameter, ParameterMode
 from ibkvit_core.ibk_engine import IBKEngine, ScreenType
 from ibkvit_core.io_utils import ImageSequenceIO, VideoIO
 from ibkvit_core.matte_fusion import FusionConfig, MatteFusionEngine
-from ibkvit_core.vit_engine import ViTEngine, parse_box, parse_coords
+from ibkvit_core.core_engine import CoreEngine, parse_box, parse_coords
+from ibkvit_core.vit_engine import ViTMatteEngine
 
 
 class VFXKeyingViTAllInOneNode(DataNode):
     """
     VFX IBK & ViT Keyer (All-in-One)
     - IBK 브랜치: 광학적 컬러 차이 기반으로 머리카락, 모션블러, 서브픽셀 투명도 엣지를 원본 그대로 보존합니다.
-    - ViT 브랜치: 시공간 추적을 통해 내부 코어(Pure White 1.0)와 외부 배경(Pure Black 0.0)의 지터를 제거하고 시간축으로 안정화합니다.
+    - Core 브랜치 (CoreEngine): 시공간 추적을 통해 내부 코어(Pure White 1.0)와 외부 배경(Pure Black 0.0)의 지터를 제거하고 시간축으로 안정화합니다.
+    - ViTMatte 브랜치 (ViTMatteEngine): 전이 영역(Unknown Zone)에 선택적으로 트랜스포머 딥러닝 엣지 정밀 추론을 적용합니다.
     - Refine & Fusion: 엣지 왜곡을 유발하는 무리한 지터 필터를 배제하고 안정화된 코어/배경 엔벨로프와 IBK 엣지를 클린 합성합니다.
     - 경량 Grayscale 알파 출력: 불필요한 RGB 색상 오버헤드 없이 단일 채널 4K UHD 32-bit Float EXR 및 16-bit PNG 시퀀스를 출력합니다.
     - 동적 폴더: 원본 영상이 위치한 폴더 내부에 자동으로 mask 폴더를 동적 생성합니다.
@@ -316,7 +318,8 @@ class VFXKeyingViTAllInOneNode(DataNode):
 
         # 1. Initialize Engines
         ibk_eng = IBKEngine(screen_type=screen_type)
-        vit_eng = ViTEngine()
+        core_eng = CoreEngine()
+        vitmatte_eng: Optional[ViTMatteEngine] = None
         fusion_eng = MatteFusionEngine(
             FusionConfig(
                 temporal_smoothing_alpha=temporal_a,
@@ -328,9 +331,9 @@ class VFXKeyingViTAllInOneNode(DataNode):
             )
         )
 
-        # 2. ViT Branch: Track and spatio-temporally de-jitter inner core & outer background envelope
+        # 2. Core Branch: Track and spatio-temporally de-jitter inner core & outer background envelope
         # Eliminates jitter on inner core (100% white) and background (100% black) without touching hair edges
-        stab_cores, stab_envs, raw_cores, raw_envs = vit_eng.track_and_stabilize_stream(
+        stab_cores, stab_envs, raw_cores, raw_envs = core_eng.track_and_stabilize_stream(
             frame_sequence=frames,
             seed_points=seed_points,
             box_coords=box_coords,
@@ -358,14 +361,16 @@ class VFXKeyingViTAllInOneNode(DataNode):
 
             # B-2. Optional ViTMatte Neural Edge Refinement on Transition Zone
             if use_vit_refine:
-                coarse_list = getattr(vit_eng, "last_coarse_masks", None)
+                if vitmatte_eng is None:
+                    vitmatte_eng = ViTMatteEngine()
+                coarse_list = getattr(core_eng, "last_coarse_masks", None)
                 if coarse_list and idx < len(coarse_list):
                     cm = coarse_list[idx]
                 elif env_raw is not None:
                     cm = env_raw
                 else:
                     cm = frame
-                vit_res = vit_eng.extract_vit_matte(
+                vit_res = vitmatte_eng.extract_vit_matte(
                     rgb_image=frame,
                     coarse_mask=cm,
                     enable_adaptive_blur=enable_adaptive_blur,
@@ -406,7 +411,8 @@ class VFXKeyingViTAllInOneNode(DataNode):
             stab_previews.append(np.stack([s_gray, s_gray, s_gray], axis=-1))
             raw_previews.append(np.stack([r_gray, r_gray, r_gray], axis=-1))
 
-        vit_eng.release_memory()
+        if vitmatte_eng is not None:
+            vitmatte_eng.release_memory()
 
         # 4. Export Sequences: Both Stabilized and Raw in 4K UHD
         ImageSequenceIO.export_sequence(
