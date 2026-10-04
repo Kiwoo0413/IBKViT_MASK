@@ -14,7 +14,7 @@
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                      입력 영상 (4K Green/Blue Screen Shot)                      │
+│                      입력 영상 (1080 Green/Blue Screen Shot)                      │
 └───────────────────────┬─────────────────────────────────┬───────────────────────┘
                         │                                 │
     [Edge Matte 브랜치: 미세 디테일 & 투과율]       [Core Matte 브랜치: 불투명 코어 & 안정화]
@@ -57,10 +57,10 @@
 
 ### 🎯 4대 컴포지팅 필러 (Compositing Pillars)
 
-1. **Clean Plate (스크린 균등화)**:
+1. **Clean Plate**:
    - 배경 스크린의 조명 편차, 주름, 핫스팟을 제거하여 완벽한 레퍼런스 컬러 플레이트를 생성합니다 (Nuke `IBKColour` 에뮬레이션).
 
-2. **Core Matte (홀드아웃 솔리드 코어)**:
+2. **Core Matte**:
    - 피사체 내부의 음영이나 질감 차이로 인해 알파에 구멍(Holes)이 뚫리거나 자글거리는 현상을 100% Pure White (1.0) 코어로 단단하게 고정합니다.
    - 외부 배경은 100% Pure Black (0.0) 엔벨로프로 닫아 지터를 완벽히 제거합니다.
    - PyTorch 의존성 없는 경량 `CoreEngine`을 통해 **60fps+ 초고속 실시간 처리**를 지원합니다.
@@ -82,11 +82,11 @@ Griptape Nodes Desktop의 **`CompMatte (VFX Matting)`** 카테고리에서 다�
 | 최신 노드 명칭 | 화면 표시 이름 (Display Name) | 기존 호환 클래스명 | 설명 |
 | :--- | :--- | :--- | :--- |
 | **`CompMatteAllInOneNode`** | `CompMatte Keyer (All-in-One)` | `VFXKeyingViTAllInOneNode` | 클린 플레이트, 코어 안정화, 광학/ViT 엣지, 엣지 재주입, 4K EXR/PNG 시퀀스 출력 통합 노드 |
-| **`CompMatteCleanPlateNode`**| `Node 01: CompMatte Clean Plate` | `IBKCleanPlateNode` | 스크린 조명 그라디언트 제거 및 Clean Plate 생성 (영상 프레임 자동 동기화) |
+| **`CompMatteCleanPlateNode`** | `Node 01: CompMatte Clean Plate` | `IBKCleanPlateNode` | 스크린 조명 그라디언트 제거 및 Clean Plate 생성 (영상 프레임 자동 동기화) |
 | **`CompMatteKeyerNode`** | `Node 02: CompMatte Edge Keyer` | `IBKKeyerNode` | 광학 컬러차이 기반 투과율 알파 엣지 마스크 추출 (IBKGizmo) |
 | **`CompMatteViTEdgeNode`** | `Node 03: CompMatte ViT Edge Refiner` | `ViTMaskExtractorNode` | 적응형 블러 감지 & 타이트 ROI 가속(14x) 기반 ViTMatte 딥러닝 엣지 추출 |
-| **`CompMatteRefinerNode`** | `Node 04: CompMatte Fusion & Stabilizer`| `VFXMatteRefinerNode` | Core Matte + Edge Matte 합성, 시간축 안정화, 잔머리 100% 재주입 |
-| **`CompMatteExportNode`** | `Node 05: CompMatte Sequence Exporter`| `VFXMaskExportNode` | 단일 채널 4K UHD 32-bit Float EXR, 16-bit PNG, Red Overlay 비디오 내보내기 |
+| **`CompMatteRefinerNode`** | `Node 04: CompMatte Fusion & Stabilizer` | `VFXMatteRefinerNode` | Core Matte + Edge Matte 합성, 시간축 안정화, 잔머리 100% 재주입 |
+| **`CompMatteExportNode`** | `Node 05: CompMatte Sequence Exporter` | `VFXMaskExportNode` | 단일 채널 4K UHD 32-bit Float EXR, 16-bit PNG, Red Overlay 비디오 내보내기 |
 
 > **하위 호환성 완벽 지원**: 기존 워크플로우 파일이나 스크립트에서 사용하던 `IBKCleanPlateNode`, `VFXKeyingViTAllInOneNode` 등의 클래스명도 100% 동일하게 동작합니다.
 
@@ -105,6 +105,7 @@ pip install -r requirements.txt
 ### 2. AI 모델 다운로드 (상대 경로 & Griptape 연동)
 
 라이브러리는 Griptape Model Management와 워크스페이스 상대 경로(`models/`)를 완벽 지원합니다:
+
 - **ViTMatte**: `hustvl/vitmatte-small-composition-1k`
 
 ```bash
@@ -139,6 +140,7 @@ python scripts/download_models.py --relative
 ## 💡 워크플로우 활용 예시
 
 ### 1. 초간단 4K All-in-One 코스
+
 - 노드 목록에서 **`CompMatte Keyer (All-in-One)`** 노드를 캔버스에 배치합니다.
 - `Input Video Path`: 입력 영상 파일 경로 지정
 - `Screen Type`: `auto`, `green`, `blue`
@@ -148,6 +150,7 @@ python scripts/download_models.py --relative
 - **Run** 실행 시 원본 영상 폴더 내에 4K 알파 마스크 시퀀스와 검수용 Red Overlay 비디오가 자동 생성됩니다.
 
 ### 2. 프로페셔널 컴포지팅 모듈러 코스
+
 - **Node 01 (CompMatte Clean Plate)**: 스크린 균등화 플레이트 추출
 - **Node 02 (CompMatte Edge Keyer)**: 순수 광학 투과율 머리카락 엣지 추출
 - **Node 03 (CompMatte ViT Edge Refiner)**: 트랜스포머 신경망 엣지 추론 (필요 시)
