@@ -43,7 +43,6 @@ class TestCompMatteReExports:
         all_in_one = CompMatteAllInOneNode()
         assert "input_video" in all_in_one.parameters
         assert "use_vitmatte_refinement" in all_in_one.parameters
-        assert "enable_edge_jitter_filter" in all_in_one.parameters
 
         clean = CompMatteCleanPlateNode()
         assert "clean_plate_dir" in clean.parameters
@@ -56,7 +55,6 @@ class TestCompMatteReExports:
 
         refiner = CompMatteRefinerNode()
         assert "stabilized_matte_dir" in refiner.parameters
-        assert "enable_edge_jitter_filter" in refiner.parameters
 
         exporter = CompMatteExportNode()
         assert "exported_dir" in exporter.parameters
@@ -96,33 +94,3 @@ class TestCompMatteReExports:
 
         # The hair strand must be 100% recovered
         np.testing.assert_allclose(result[25, 25:35], 0.85, atol=1e-5)
-
-    def test_compmatte_edge_jitter_filtering(self):
-        """Verify CompMatte unknown zone geometric jitter filtering."""
-        from compmatte_core import CompMatteFusionEngine, CompMatteFusionConfig
-
-        config = CompMatteFusionConfig(enable_edge_jitter_filter=True)
-        fusion = CompMatteFusionEngine(config=config)
-
-        h, w = 60, 60
-        core = np.zeros((h, w), dtype=np.float32)
-        core[20:40, 20:40] = 1.0
-
-        env = np.zeros((h, w), dtype=np.float32)
-        env[10:50, 10:50] = 1.0
-
-        base = core.copy()
-        # 1px hair strand touching core
-        base[14:20, 30] = 0.90
-        # 1px isolated noise dot in unknown zone
-        base[15, 15] = 0.65
-
-        cleaned = fusion.filter_edge_jitter(base, core_mask=core, envelope_mask=env)
-
-        # Hair strand must remain 0.90
-        np.testing.assert_allclose(cleaned[14:20, 30], 0.90)
-        # Noise must be wiped to 0.0
-        assert cleaned[15, 15] == 0.0
-        # Core must stay 1.0
-        assert np.all(cleaned[20:40, 20:40] == 1.0)
-

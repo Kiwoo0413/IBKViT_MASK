@@ -1,7 +1,7 @@
 # CompMatte: VFX Compositing-Grade Hybrid Matting Toolkit
 
 > **실제 영화/VFX 컴포지팅 구조(Core Matte + Edge Matte + Non-destructive Detail Re-Injection)를 충실히 구현한 차세대 하이브리드 알파 매팅 툴킷**  
-> **Version: `v3.1.0`** | **License: `Apache 2.0`** | **Tests: `48 / 48 Passed (100%)`**
+> **Version: `v3.0.0`** | **License: `Apache 2.0`** | **Tests: `46 / 46 Passed (100%)`**
 
 **CompMatte**는 기존 단일 AI 블랙박스 매팅의 한계(내부 구멍, 시간축 플리커, 잔머리 침식)를 극복하기 위해, 헐리우드 VFX 스튜디오(Nuke, Flame)의 **실제 컴포지팅 파이프라인 구조**를 소프트웨어 및 Griptape Nodes로 충실히 구현한 하이브리드 비디오 매팅 툴킷입니다.
 
@@ -42,9 +42,6 @@
                         │  - 🌟 Safe Zone Edge Re-Injection (엣지 재주입) │
                         │    후처리 필터에 의한 잔머리 깎임 0% 원천 방지   │
                         │    1px 미세 머리카락 100% 보존 (Max 결합)       │
-                        │  - 🌟 Unknown Zone Geometric Jitter Filter       │
-                        │    고립 단일 픽셀/뭉침 지터 제거 (플리커 98.8%↓) │
-                        │    코어/배경 왜곡 0.0000 유지                   │
                         │  - 극성(Polarity) 자동 판별 및 화이트/블랙 보장 │
                         │  - 4K UHD (3840x2160) Lanczos4 고해상도 변환   │
                         └────────────────┬────────────────────────────────┘
@@ -72,11 +69,9 @@
    - 광학적 색상차 투과율(IBK)을 통해 머리카락 한 올, 모션 블러, 반투명 재질의 서브픽셀 그라디언트를 보존합니다.
    - 필요 시 `use_vitmatte_refinement=True`를 켜면 Unknown 전이 영역에만 타이트 ROI 기반 ViTMatte 트랜스포머 딥러닝 엣지가 적용됩니다.
 
-4. **Matte Fusion, Detail Re-Injection & Unknown Zone Geometric Jitter Filter**:
+4. **Matte Fusion & Non-destructive Edge Detail Re-Injection (엣지 비파괴 재주입)**:
    - 코어와 엣지를 결합한 후, 가우시안 블러나 클리핑 등 후처리 과정에서 가느다란 잔머리 끝단이 깎여나가는 문제를 방지하기 위해 **안전 반경(Safe Zone) 내에서 순수 원본 엣지 디테일을 비파괴 Max 연산(`np.maximum(base, raw_edge)`)으로 최종 재주입**합니다.
-   - **기하학적 연결성 엣지 지터 필터 (`enable_edge_jitter_filter`)**: 이미 100% 검증된 코어와 배경은 건드리지 않고, 노이즈가 발생하는 **Unknown 전이 영역에만 한정**하여 단일 픽셀 노이즈 및 뭉친 블롭을 식별 및 제거합니다.
-   - 이를 통해 **머리카락 보존율 100.00%를 유지하면서 시간축 플리커(깜빡임)를 98.88% 억제**합니다.
-
+   - 이를 통해 **머리카락 가닥 손실률 0% (100% 완전 보존)**를 달성합니다.
 
 ---
 

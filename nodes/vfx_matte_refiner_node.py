@@ -136,16 +136,6 @@ class VFXMatteRefinerNode(DataNode):
         )
         self.add_parameter(
             Parameter(
-                name="enable_edge_jitter_filter",
-                type="bool",
-                default_value=True,
-                tooltip="Unknown 전이 영역에 기하학적 연결성 엣지 지터 필터 적용 (고립 단일 픽셀 및 뭉친 노이즈 제거, 1px 미세 잔머리 100% 보존)",
-                display_name="Edge Jitter Filter (Unknown Zone)",
-                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
-            )
-        )
-        self.add_parameter(
-            Parameter(
                 name="output_dir",
                 type="str",
                 default_value="",
@@ -240,7 +230,6 @@ class VFXMatteRefinerNode(DataNode):
         raw_dir.mkdir(parents=True, exist_ok=True)
 
         is_4k = res_opt == "4k"
-        enable_jitter_filt = bool(self.get_parameter_value("enable_edge_jitter_filter") if self.get_parameter_value("enable_edge_jitter_filter") is not None else True)
         config = FusionConfig(
             temporal_smoothing_alpha=temporal_a,
             black_clip=0.01,
@@ -248,7 +237,6 @@ class VFXMatteRefinerNode(DataNode):
             use_core_fill=True,
             auto_detect_polarity=auto_polarity,
             invert_matte=invert_m,
-            enable_edge_jitter_filter=enable_jitter_filt,
         )
         engine = MatteFusionEngine(config=config)
 
