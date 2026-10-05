@@ -158,6 +158,17 @@ class VFXKeyingViTAllInOneNode(DataNode):
         )
         self.add_parameter(
             Parameter(
+                name="enable_edge_jitter_filter",
+                type="bool",
+                default_value=True,
+                tooltip="Unknown 전이 영역에 기하학적 연결성 엣지 지터 필터 적용 (고립 단일 픽셀 및 뭉친 노이즈 제거, 1px 미세 잔머리 100% 보존)",
+                display_name="Edge Jitter Filter (Unknown Zone)",
+                allowed_modes={ParameterMode.INPUT, ParameterMode.PROPERTY},
+            )
+        )
+
+        self.add_parameter(
+            Parameter(
                 name="output_resolution",
                 type="str",
                 default_value="4k",
@@ -287,6 +298,7 @@ class VFXKeyingViTAllInOneNode(DataNode):
         out_dir_param = str(self.get_parameter_value("output_dir") or "").strip()
         enable_adaptive_blur = bool(self.get_parameter_value("enable_adaptive_blur") if self.get_parameter_value("enable_adaptive_blur") is not None else True)
         use_vit_refine = bool(self.get_parameter_value("use_vitmatte_refinement") if self.get_parameter_value("use_vitmatte_refinement") is not None else True)
+        enable_jitter_filt = bool(self.get_parameter_value("enable_edge_jitter_filter") if self.get_parameter_value("enable_edge_jitter_filter") is not None else True)
 
         seed_points = parse_coords(seed_str)
         box_coords = parse_box(box_str)
@@ -328,8 +340,10 @@ class VFXKeyingViTAllInOneNode(DataNode):
                 use_core_fill=True,
                 auto_detect_polarity=auto_polarity,
                 invert_matte=invert_m,
+                enable_edge_jitter_filter=enable_jitter_filt,
             )
         )
+
 
         # 2. Core Branch: Track and spatio-temporally de-jitter inner core & outer background envelope
         # Eliminates jitter on inner core (100% white) and background (100% black) without touching hair edges

@@ -34,6 +34,11 @@ class FusionConfig:
     invert_matte: bool = False           # Manual invert override
     restore_fine_edges: bool = True      # Edge Re-Injection: restore pure optical hair edges after filtering
     edge_restore_band_radius: int = 80   # Safe zone radius around core to re-inject hair without background noise
+    enable_edge_jitter_filter: bool = True # Geometric connectivity prior jitter filter in unknown zone
+    edge_jitter_aspect_ratio: float = 2.2 # Min aspect ratio (L/W) for floating hair strands
+    edge_jitter_min_len: float = 6.0      # Min diagonal length for hair strands
+    edge_jitter_max_area: int = 30        # Max area for isolated noise clumps to remove
+    edge_jitter_core_dilation: int = 3    # Radius around core to check hair root anchoring
 
 
 class MatteFusionEngine:
@@ -377,6 +382,95 @@ class MatteFusionEngine:
 
         return np.clip(restored, 0.0, 1.0).astype(np.float32)
 
+    def filter_edge_jitter(
+        self,
+        base_matte: np.ndarray,
+        core_mask: Optional[np.ndarray],
+        envelope_mask: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """
+        Geometric & Connectivity Prior Jitter Filter for the Unknown Transition Zone.
+        Preserves 100% of thin, elongated hair strands and core-anchored details while
+        eliminating isolated single-pixel noise and clumpy jitter blobs.
+        Guarantees core interior (1.0) and background (0.0) remain 100% untouched.
+        """
+        if not self.config.enable_edge_jitter_filter or core_mask is None:
+            return base_matte
+
+        h, w = base_matte.shape[:2]
+        core_bin = (core_mask > 0.5).astype(np.uint8)
+        if core_bin.shape[:2] != (h, w):
+            core_bin = cv2.resize(core_bin, (w, h), interpolation=cv2.INTER_NEAREST)
+
+        if envelope_mask is not None:
+            env_bin = (envelope_mask > 0.5).astype(np.uint8)
+            if env_bin.shape[:2] != (h, w):
+                env_bin = cv2.resize(env_bin, (w, h), interpolation=cv2.INTER_NEAREST)
+        else:
+            # Auto-synthesize safe envelope zone around core (80px radius)
+            k_env = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (161, 161))
+            env_bin = cv2.dilate(core_bin, k_env)
+
+
+        # 1. Strictly isolate the Unknown Transition Zone
+        unknown_zone = (env_bin == 1) & (core_bin == 0)
+        if not np.any(unknown_zone):
+            return base_matte
+
+        # 2. Extract edge detail candidates above threshold in the unknown zone
+        candidate_bin = ((base_matte > 0.05) & unknown_zone).astype(np.uint8)
+        if not np.any(candidate_bin):
+            return base_matte
+
+        # Dilate core to test for connectivity/origin
+        k_rad = max(1, self.config.edge_jitter_core_dilation)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * k_rad + 1, 2 * k_rad + 1))
+        dilated_core = cv2.dilate(core_bin, kernel)
+        core_touch_zone = (dilated_core == 1) & unknown_zone
+
+        # 3. Connected Components Analysis (8-connectivity)
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(candidate_bin, connectivity=8)
+        if num_labels <= 1:
+            return base_matte
+
+        jitter_mask = np.zeros((h, w), dtype=bool)
+
+        for label in range(1, num_labels):
+            area = stats[label, cv2.CC_STAT_AREA]
+            bx_w = stats[label, cv2.CC_STAT_WIDTH]
+            bx_h = stats[label, cv2.CC_STAT_HEIGHT]
+            diag = np.sqrt(bx_w**2 + bx_h**2)
+            aspect_ratio = max(bx_w, bx_h) / (min(bx_w, bx_h) + 1e-5)
+
+            comp_pixels = (labels == label)
+            touches_core = np.any(comp_pixels & core_touch_zone)
+
+            is_hair = False
+            if touches_core:
+                # Strands originating from the core: relaxed criteria
+                if diag >= self.config.edge_jitter_min_len or aspect_ratio >= 1.5:
+                    is_hair = True
+            else:
+                # Floating/detached components: strict high aspect ratio requirement
+                if aspect_ratio >= self.config.edge_jitter_aspect_ratio and diag >= self.config.edge_jitter_min_len:
+                    is_hair = True
+
+            if not is_hair:
+                # If area is within noise threshold or aspect ratio is low (clump/blob)
+                if area <= self.config.edge_jitter_max_area or aspect_ratio < self.config.edge_jitter_aspect_ratio:
+                    jitter_mask |= comp_pixels
+
+        # 4. Construct cleaned matte: suppress jitter strictly in unknown zone
+        filtered_matte = base_matte.copy()
+        filtered_matte[jitter_mask] = 0.0
+
+        # Guarantee Core (1.0) and Envelope (0.0 outside) are 100% unchanged
+        filtered_matte[core_bin == 1] = 1.0
+        filtered_matte[env_bin == 0] = 0.0
+
+        return np.clip(filtered_matte, 0.0, 1.0).astype(np.float32)
+
+
     def apply_temporal_smoothing(
         self,
         current_matte: np.ndarray,
@@ -504,6 +598,15 @@ class MatteFusionEngine:
                 core_matte=core_matte,
                 band_radius=self.config.edge_restore_band_radius,
             )
+
+        # 3-C. Unknown Zone Geometric Jitter Filtering (suppress isolated noise while keeping 100% hair)
+        if self.config.enable_edge_jitter_filter and core_matte is not None:
+            refined_stab = self.filter_edge_jitter(
+                base_matte=refined_stab,
+                core_mask=core_matte,
+                envelope_mask=envelope_matte,
+            )
+
 
         # If envelope_matte was not supplied (legacy mode), apply EMA temporal smoothing on stabilized stream
         if envelope_matte is None:
